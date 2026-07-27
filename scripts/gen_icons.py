@@ -1,7 +1,7 @@
 from PIL import Image, ImageDraw
 import os
 
-base = os.path.dirname(os.path.abspath(__file__))
+base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 out_dir = os.path.join(base, "static", "images")
 os.makedirs(out_dir, exist_ok=True)
 
