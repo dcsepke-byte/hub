@@ -10,6 +10,7 @@ from flask_socketio import SocketIO, emit
 from app.config import Config
 from app.auth import require_login, verify_password, LoginThrottle
 from app import notion, weather, explorer
+from app import hermes, search as search_module
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -82,6 +83,25 @@ def settings():
 @require_login
 def api_weather():
     return jsonify(weather.get_weather())
+
+
+@app.route("/api/search")
+@require_login
+def api_search():
+    q = request.args.get("q", "").strip()
+    return jsonify(search_module.search_all(q))
+
+
+@app.route("/api/daily-report")
+@require_login
+def api_daily_report():
+    tasks = notion.get_tasks(status="Offen", limit=50)
+    w = weather.get_weather()
+    weather_text = "nicht verfügbar"
+    if w.get("ok"):
+        c = w["current"]
+        weather_text = f"{c['temp']}°C, Code {c['code']}"
+    return jsonify({"text": hermes.generate_daily_report(tasks, weather_text)})
 
 
 @app.route("/api/tasks")
@@ -204,8 +224,14 @@ def handle_chat_message(data):
     if not user_msg:
         return
     emit("chat_message", {"role": "user", "text": user_msg}, broadcast=True)
-    time.sleep(0.3)
-    emit("chat_message", {"role": "hermes", "text": f"Ich habe verstanden: {user_msg}\n\n(Hier wird später die echte Hermes-KI antworten.)"}, broadcast=True)
+
+    history = [{"role": "user", "content": user_msg}]
+    res = hermes.answer_user_question(history)
+
+    if res.get("ok"):
+        emit("chat_message", {"role": "hermes", "text": res["text"]}, broadcast=True)
+    else:
+        emit("chat_message", {"role": "hermes", "text": f"KI nicht erreichbar: {res.get('error', 'Unbekannter Fehler')}"}, broadcast=True)
 
 
 # --- Static file serving for uploads ---

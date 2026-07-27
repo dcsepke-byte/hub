@@ -16,6 +16,7 @@ const PAGES = {
 
 function init() {
   initNav();
+  initSearch();
   initSidebar();
   initQuickAdd();
   initSocket();
@@ -30,6 +31,53 @@ function initNav() {
       navigate(el.dataset.page);
       closeSidebar();
     });
+  });
+}
+
+function initSearch() {
+  const input = $("#globalSearch");
+  const results = $("#searchResults");
+  let debounce;
+  input.addEventListener("input", () => {
+    clearTimeout(debounce);
+    const q = input.value.trim();
+    if (!q) { results.classList.remove("show"); return; }
+    debounce = setTimeout(async () => {
+      try {
+        const data = await getJSON(`/api/search?q=${encodeURIComponent(q)}`);
+        renderSearchResults(data);
+      } catch (e) {
+        results.innerHTML = `<div class="search-empty">Fehler</div>`;
+        results.classList.add("show");
+      }
+    }, 250);
+  });
+  input.addEventListener("focus", () => { if (input.value.trim()) results.classList.add("show"); });
+  document.addEventListener("click", (e) => {
+    if (!input.contains(e.target) && !results.contains(e.target)) results.classList.remove("show");
+  });
+}
+
+function renderSearchResults(data) {
+  const box = $("#searchResults");
+  const items = [];
+  (data.projects || []).forEach((p) => items.push({ type: "Projekt", title: p.name, action: () => { appState.taskFilter = p.name; navigate("tasks"); } }));
+  (data.tasks || []).forEach((t) => items.push({ type: "Task", title: t.title, meta: t.project, action: () => window.open(t.url, "_blank") }));
+  (data.files || []).forEach((f) => items.push({ type: f.type === "folder" ? "Ordner" : "Datei", title: f.name, action: () => {
+    if (f.type === "folder") { appState.path = f.path; navigate("explorer"); }
+    else window.open(`/files/${encodeURIComponent(f.path)}`, "_blank");
+  } }));
+
+  box.innerHTML = items.length
+    ? items.map((it) => `<div class="search-result" data-action="">
+        <div class="type">${it.type}</div>
+        <div class="title">${it.title}${it.meta ? ` <span style="color:var(--muted);font-size:12px">(${it.meta})</span>` : ""}</div>
+      </div>`).join("")
+    : `<div class="search-empty">Keine Ergebnisse</div>`;
+  box.classList.add("show");
+
+  box.querySelectorAll(".search-result").forEach((el, i) => {
+    el.addEventListener("click", () => { items[i].action(); box.classList.remove("show"); $("#globalSearch").value = ""; });
   });
 }
 
@@ -174,10 +222,12 @@ async function renderHome(container) {
       <div class="card" id="tasks-card"><div class="loader"></div></div>
       <div class="card" id="day-card">
         <h3>📅 Tagesbericht</h3>
-        <p class="empty-state">Tagesbericht wird von Hermes generiert.\nComing soon.</p>
+        <div id="daily-report" class="loader"></div>
       </div>
     </div>
   `;
+
+  loadDailyReport();
 
   $("#chat-form").addEventListener("submit", (e) => {
     e.preventDefault();
@@ -194,6 +244,21 @@ async function renderHome(container) {
 
   loadWeather();
   loadTodayTasks();
+}
+
+async function loadDailyReport() {
+  const el = $("#daily-report");
+  if (!el) return;
+  try {
+    const data = await getJSON("/api/daily-report");
+    el.classList.remove("loader");
+    el.style.whiteSpace = "pre-wrap";
+    el.style.fontSize = "14px";
+    el.style.lineHeight = "1.5";
+    el.textContent = data.text || "Kein Tagesbericht verfügbar.";
+  } catch (e) {
+    if (el) { el.classList.remove("loader"); el.textContent = "Fehler beim Laden."; }
+  }
 }
 
 function appendMessage(box, msg) {

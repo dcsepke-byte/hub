@@ -13,6 +13,10 @@
     <button class="burger" id="burger" aria-label="Menü">☰</button>
     <div class="brand">🏠 HUB</div>
     <div class="top-actions">
+      <div class="search-box">
+        <input type="text" id="globalSearch" placeholder="Suchen..." autocomplete="off">
+        <div class="search-results" id="searchResults"></div>
+      </div>
       <button id="quickAdd" class="icon-btn" title="Schnell hinzufügen">+</button>
       <a href="{{ url_for('logout') }}" class="icon-btn" title="Abmelden">→</a>
     </div>

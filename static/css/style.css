@@ -65,6 +65,24 @@ body {
 .burger { background: none; border: none; color: var(--text); font-size: 22px; cursor: pointer; }
 .brand { font-weight: 700; font-size: 18px; flex: 1; }
 .top-actions { display: flex; gap: 8px; align-items: center; }
+.search-box { position: relative; }
+.search-box input {
+  background: var(--surface-2); color: var(--text); border: 1px solid var(--surface-3);
+  border-radius: 999px; padding: 8px 14px; width: 180px; font-size: 14px;
+  transition: width var(--transition);
+}
+.search-box input:focus { outline: none; border-color: var(--accent); width: 260px; }
+.search-results {
+  position: absolute; top: 110%; right: 0; width: 320px; max-height: 360px; overflow-y: auto;
+  background: var(--surface); border: 1px solid var(--surface-2); border-radius: var(--radius-sm);
+  box-shadow: var(--shadow); display: none; z-index: 120;
+}
+.search-results.show { display: block; }
+.search-result { padding: 10px 14px; border-bottom: 1px solid var(--surface-2); cursor: pointer; }
+.search-result:hover { background: var(--surface-2); }
+.search-result .type { font-size: 11px; color: var(--accent); text-transform: uppercase; }
+.search-result .title { font-size: 14px; }
+.search-empty { padding: 14px; color: var(--muted); font-size: 14px; text-align: center; }
 .icon-btn {
   width: 36px; height: 36px; border-radius: var(--radius-sm);
   background: var(--surface-2); color: var(--text); border: none;
