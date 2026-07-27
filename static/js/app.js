@@ -149,9 +149,14 @@ function initSocket() {
   socket = io({ transports: ["websocket", "polling"] });
   socket.on("connect", () => console.log("socket connected"));
   socket.on("chat_message", (msg) => {
+    const indicator = document.getElementById("typing-indicator");
+    if (indicator) indicator.remove();
     chatHistory.push(msg);
     const box = $(".chat-messages");
     if (box) appendMessage(box, msg);
+  });
+  socket.on("connect_error", () => {
+    flash("Chat-Verbindung unterbrochen", "error");
   });
 }
 
@@ -169,7 +174,8 @@ function navigate(page, push = true) {
 
 async function getJSON(url) {
   const r = await fetch(url);
-  if (!r.ok) throw new Error(r.statusText);
+  if (r.status === 401) { window.location.href = "/login"; throw new Error("Nicht eingeloggt"); }
+  if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
   return r.json();
 }
 
@@ -179,6 +185,7 @@ async function postJSON(url, body) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
+  if (r.status === 401) { window.location.href = "/login"; return { ok: false }; }
   return r.json().catch(() => ({ ok: false }));
 }
 
@@ -188,6 +195,7 @@ async function patchJSON(url, body) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
+  if (r.status === 401) { window.location.href = "/login"; return { ok: false }; }
   return r.json().catch(() => ({ ok: false }));
 }
 
@@ -236,6 +244,14 @@ async function renderHome(container) {
     if (!text || !socket) return;
     socket.emit("chat_message", { text });
     input.value = "";
+    // typing indicator
+    const box = $("#chat-box");
+    const typing = document.createElement("div");
+    typing.className = "typing";
+    typing.innerHTML = "Hermes denkt<span></span><span></span><span></span>";
+    typing.id = "typing-indicator";
+    box.appendChild(typing);
+    box.scrollTop = box.scrollHeight;
   });
 
   // render existing chat
