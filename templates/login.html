@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HUB — Login</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="login-page">
+  <main class="login-card">
+    <div class="logo">🏠</div>
+    <h1>HUB</h1>
+    <p class="subtitle">Danny's Central Workspace</p>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="flash {{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+    <form method="POST" action="{{ url_for('login') }}">
+      <input type="password" name="password" placeholder="Passwort" autofocus autocomplete="current-password" required {% if locked %}disabled{% endif %}>
+      <button type="submit" class="btn-primary" {% if locked %}disabled{% endif %}>Anmelden</button>
+    </form>
+    {% if locked %}<p class="locked-hint">Zu viele Fehlversuche. 5 Min. warten.</p>{% endif %}
+  </main>
+</body>
+</html>

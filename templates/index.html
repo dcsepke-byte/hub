@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0f0f11">
+  <title>HUB — Danny's Workspace</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+</head>
+<body class="dark">
+  <header class="topbar">
+    <button class="burger" id="burger" aria-label="Menü">☰</button>
+    <div class="brand">🏠 HUB</div>
+    <div class="top-actions">
+      <button id="quickAdd" class="icon-btn" title="Schnell hinzufügen">+</button>
+      <a href="{{ url_for('logout') }}" class="icon-btn" title="Abmelden">→</a>
+    </div>
+  </header>
+
+  <nav class="sidebar" id="sidebar">
+    <a href="#home" data-page="home" class="nav-item active">🏠 Home</a>
+    <a href="#projects" data-page="projects" class="nav-item">📁 Projekte</a>
+    <a href="#tasks" data-page="tasks" class="nav-item">✅ To-Do</a>
+    <a href="#explorer" data-page="explorer" class="nav-item">📂 Explorer</a>
+    <a href="#settings" data-page="settings" class="nav-item">⚙️ Settings</a>
+  </nav>
+
+  <div class="overlay" id="overlay"></div>
+
+  <main class="content" id="content">
+    <!-- Views werden per JS gerendert -->
+  </main>
+
+  <div class="fab" id="fab" title="Schnell hinzufügen">+</div>
+
+  <!-- Quick-Add Modal -->
+  <div class="modal" id="quickAddModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Schnell hinzufügen</h3>
+        <button class="close-modal">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="quick-types">
+          <button data-type="task" class="quick-type active">✅ Task</button>
+          <button data-type="note" class="quick-type">📝 Notiz</button>
+          <button data-type="file" class="quick-type">📎 Datei</button>
+        </div>
+        <form id="quickForm">
+          <input type="text" id="quickTitle" placeholder="Titel" required>
+          <select id="quickProject">
+            <option value="Persoenlich">Persoenlich</option>
+            <option value="Party Arena">Party Arena</option>
+            <option value="KI-Videos">KI-Videos</option>
+            <option value="Hochzeit">Hochzeit</option>
+            <option value="Server">Server</option>
+            <option value="Klavier-Coach">Klavier-Coach</option>
+            <option value="Bangkok">Bangkok</option>
+          </select>
+          <input type="file" id="quickFile" style="display:none">
+          <button type="submit" class="btn-primary">Speichern</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
