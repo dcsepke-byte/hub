@@ -217,7 +217,16 @@ function flash(text, type = "ok") {
 // --- Home ---
 async function renderHome(container) {
   container.innerHTML = `
-    <h2 class="page-title">Home</h2>
+    <div class="app-grid">
+      ${appIcon("party-arena", "Party Arena")}
+      ${appIcon("piano-coach", "Klavier")}
+      ${appIcon("projects", "Projekte", () => navigate("projects"))}
+      ${appIcon("todo", "To-Do", () => navigate("tasks"))}
+      ${appIcon("explorer", "Explorer", () => navigate("explorer"))}
+      ${appIcon("chat", "Hermes", () => { document.querySelector(".chat-widget")?.classList.add("expanded"); })}
+      ${appIcon("settings", "Settings", () => navigate("settings"))}
+    </div>
+    <h2 class="page-title">Übersicht</h2>
     <div class="grid grid-2">
       <div class="card" id="weather-card"><div class="loader"></div></div>
       <div class="card chat-widget">
@@ -231,7 +240,7 @@ async function renderHome(container) {
       <div class="card" id="calendar-card">
         <h3>🗓️ Termine heute</h3>
         <div id="today-events" class="loader"></div>
-        <button class="btn-secondary" id="add-event-btn" style="margin-top:10px;width:100%">+ Termin</button>
+        <button class="btn-secondary" id="add-event-btn" style="margin-top:12px;width:100%">+ Termin</button>
       </div>
       <div class="card" id="tasks-card"><h3>✅ Heutige To-Do</h3><div class="loader"></div></div>
       <div class="card" id="day-card">
@@ -239,12 +248,13 @@ async function renderHome(container) {
         <div id="daily-report" class="loader"></div>
       </div>
       <div class="card" id="news-card">
-        <h3>📰 News — tagesschau.de</h3>
+        <h3>📰 News</h3>
         <div id="news-list" class="loader"></div>
       </div>
     </div>
   `;
 
+  bindAppClicks();
   loadDailyReport();
 
   $("#chat-form").addEventListener("submit", (e) => {
@@ -254,7 +264,6 @@ async function renderHome(container) {
     if (!text || !socket) return;
     socket.emit("chat_message", { text });
     input.value = "";
-    // typing indicator
     const box = $("#chat-box");
     const typing = document.createElement("div");
     typing.className = "typing";
@@ -264,7 +273,6 @@ async function renderHome(container) {
     box.scrollTop = box.scrollHeight;
   });
 
-  // render existing chat
   const box = $("#chat-box");
   chatHistory.slice(-20).forEach((m) => appendMessage(box, m));
 
@@ -273,6 +281,29 @@ async function renderHome(container) {
   loadTodayEvents();
   loadNews();
   initChatExpand();
+}
+
+function appIcon(id, label, action = null) {
+  return `
+    <div class="app-icon" data-app="${id}">
+      <img src="/static/images/apps/${id}.png" alt="${label}">
+      <div class="label">${label}</div>
+    </div>`;
+}
+
+function bindAppClicks() {
+  $$(".app-icon").forEach((el) => {
+    el.addEventListener("click", () => {
+      const id = el.dataset.app;
+      if (id === "party-arena") window.open("https://github.com/dcsepke-byte/DC-Minigame", "_blank");
+      else if (id === "piano-coach") window.open("https://coach.danny-csepke.de", "_blank");
+      else if (id === "projects") navigate("projects");
+      else if (id === "todo") navigate("tasks");
+      else if (id === "explorer") navigate("explorer");
+      else if (id === "chat") document.querySelector(".chat-widget")?.classList.add("expanded");
+      else if (id === "settings") navigate("settings");
+    });
+  });
 }
 
 async function loadTodayEvents() {
@@ -419,7 +450,12 @@ function weatherIcon(code, isDay) {
 
 // --- Projects ---
 async function renderProjects(container) {
-  container.innerHTML = `<h2 class="page-title">Projekte</h2>
+  container.innerHTML = `
+    <div class="app-grid">
+      ${appIcon("party-arena", "Party Arena")}
+      ${appIcon("piano-coach", "Klavier")}
+    </div>
+    <h2 class="page-title">Projekte</h2>
     <div class="grid grid-2" id="project-grid"><div class="loader"></div></div>`;
   try {
     const projects = await getJSON("/api/projects");
@@ -432,6 +468,7 @@ async function renderProjects(container) {
         </div>
         <div class="tasks">${p.tasks} offene Task${p.tasks === 1 ? "" : "s"}</div>
       </div>`).join("");
+    bindAppClicks();
     $$(".project-card").forEach((card) => {
       card.addEventListener("click", () => { appState.projectDetail = card.dataset.project; navigate("project"); });
     });

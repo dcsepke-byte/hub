@@ -8,7 +8,7 @@
 </head>
 <body class="login-page">
   <main class="login-card">
-    <div class="logo">🏠</div>
+    <div class="logo"><img src="{{ url_for('static', filename='images/apps/hub.png') }}" alt="HUB" width="90" height="90"></div>
     <h1>HUB</h1>
     <p class="subtitle">Danny's Central Workspace</p>
     {% with messages = get_flashed_messages(with_categories=true) %}
