@@ -146,7 +146,7 @@ function initQuickAdd() {
 }
 
 function initSocket() {
-  socket = io({ transports: ["websocket", "polling"] });
+  socket = io({ transports: ["polling"] });
   socket.on("connect", () => console.log("socket connected"));
   socket.on("chat_message", (msg) => {
     const indicator = document.getElementById("typing-indicator");
