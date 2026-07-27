@@ -272,6 +272,7 @@ async function renderHome(container) {
   loadTodayTasks();
   loadTodayEvents();
   loadNews();
+  initChatExpand();
 }
 
 async function loadTodayEvents() {
@@ -330,14 +331,27 @@ async function loadDailyReport() {
   const el = $("#daily-report");
   if (!el) return;
   try {
+    const today = new Date();
+    const dates = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      dates.push(d.toLocaleDateString("de-DE", { weekday: "long", day: "2-digit", month: "2-digit" }));
+    }
     const data = await getJSON("/api/daily-report");
     el.classList.remove("loader");
-    el.style.whiteSpace = "pre-wrap";
-    el.style.fontSize = "14px";
-    el.style.lineHeight = "1.5";
-    el.textContent = data.text || "Kein Tagesbericht verfügbar.";
+    const text = data.text || "Kein Tagesbericht verfügbar.";
+    const days = dates.map((date, i) => ({
+      date,
+      text: i === 6 ? text : "Vergangene Tage werden noch aus der Notion-Historie aggregiert.",
+    }));
+    el.innerHTML = days.map((d) => `
+      <div class="report-day">
+        <div class="date">${d.date}</div>
+        <div style="white-space:pre-wrap">${d.text}</div>
+      </div>`).join("");
   } catch (e) {
-    if (el) { el.classList.remove("loader"); el.textContent = "Fehler beim Laden."; }
+    if (el) { el.classList.remove("loader"); el.innerHTML = "<p class='empty-state'>Fehler beim Laden.</p>"; }
   }
 }
 
@@ -477,16 +491,41 @@ async function renderProjectDetail(container) {
 async function renderTasks(container) {
   container.innerHTML = `
     <h2 class="page-title">To-Do</h2>
-    <div class="task-filter">
-      <button data-filter="all" class="active">Alle</button>
-      <button data-filter="Offen">Offen</button>
-      <button data-filter="Erledigt">Erledigt</button>
-      <button data-filter="Party Arena">Party Arena</button>
-      <button data-filter="KI-Videos">KI-Videos</button>
-      <button data-filter="Hochzeit">Hochzeit</button>
-      <button data-filter="Server">Server</button>
+    <div class="task-tabs">
+      <button data-tab="tasks" class="active">Aufgaben</button>
+      <button data-tab="lists">Listen</button>
     </div>
-    <div class="task-list" id="task-list"><div class="loader"></div></div>`;
+    <div id="task-panel">
+      <div class="task-filter">
+        <button data-filter="all" class="active">Alle</button>
+        <button data-filter="Offen">Offen</button>
+        <button data-filter="Erledigt">Erledigt</button>
+        <button data-filter="Party Arena">Party Arena</button>
+        <button data-filter="KI-Videos">KI-Videos</button>
+        <button data-filter="Hochzeit">Hochzeit</button>
+        <button data-filter="Server">Server</button>
+      </div>
+      <div class="task-list" id="task-list"><div class="loader"></div></div>
+    </div>
+    <div id="lists-panel" style="display:none">
+      <div class="list-tabs" id="list-tabs"></div>
+      <div class="task-list" id="lists-list"><div class="loader"></div></div>
+      <form id="list-add-form" class="list-add-form">
+        <input type="text" id="list-new-item" placeholder="Neuer Eintrag...">
+        <button type="submit" class="btn-primary">+</button>
+      </form>
+    </div>`;
+
+  $$(".task-tabs button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      $$(".task-tabs button").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      const isTasks = btn.dataset.tab === "tasks";
+      $("#task-panel").style.display = isTasks ? "block" : "none";
+      $("#lists-panel").style.display = isTasks ? "none" : "block";
+      if (!isTasks) loadLists();
+    });
+  });
 
   $$(".task-filter button").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -504,7 +543,18 @@ async function renderTasks(container) {
     $$(".task-filter button[data-filter='all']")?.[0]?.classList.remove("active");
   }
 
+  $("#list-add-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const input = $("#list-new-item");
+    if (!input.value.trim() || !appState.activeList) return;
+    const res = await postJSON(`/api/lists/${encodeURIComponent(appState.activeList)}/items`, { text: input.value.trim() });
+    if (res.ok) { input.value = ""; loadLists(); }
+    else flash("Fehler", "error");
+  });
+
   await loadTasks();
+  appState.activeList = "Einkauf";
+  loadLists();
 }
 
 async function loadTasks() {
@@ -521,9 +571,68 @@ async function loadTasks() {
     const tasks = await getJSON(url);
     list.innerHTML = tasks.length ? tasks.map(taskRow).join("") : "<p class='empty-state'>Keine Tasks.</p>";
     bindTaskCheckboxes(list, loadTasks);
+    initSwipe(list, loadTasks);
+    list.innerHTML += `<div class="swipe-hint">↔ Swipe: rechts erledigt · links blockiert</div>`;
   } catch (e) {
     list.innerHTML = "<p class='empty-state'>Fehler beim Laden.</p>";
   }
+}
+
+async function loadLists() {
+  const tabs = $("#list-tabs");
+  const list = $("#lists-list");
+  if (!tabs || !list) return;
+  list.innerHTML = "<div class='loader'></div>";
+  try {
+    const data = await getJSON("/api/lists");
+    const names = Object.keys(data);
+    appState.activeList = appState.activeList || names[0];
+    tabs.innerHTML = names.map((n) => `<button class="list-tab ${n === appState.activeList ? 'active' : ''}" data-list="${n}">${n}</button>`).join("");
+    $$("#list-tabs button").forEach((btn) => btn.addEventListener("click", () => { appState.activeList = btn.dataset.list; loadLists(); }));
+    const items = data[appState.activeList] || [];
+    list.innerHTML = items.length
+      ? items.map((it) => `
+        <div class="task-item ${it.done ? 'done' : ''}" data-list="${appState.activeList}" data-id="${it.id}">
+          <input type="checkbox" ${it.done ? 'checked' : ''} data-list="${appState.activeList}" data-id="${it.id}">
+          <div class="task-title" style="${it.done ? 'text-decoration:line-through;color:var(--muted)' : ''}">${it.text}</div>
+        </div>`).join("")
+      : "<p class='empty-state'>Liste leer.</p>";
+    list.querySelectorAll("input[type=checkbox]").forEach((box) => {
+      box.addEventListener("change", async () => {
+        await patchJSON(`/api/lists/${encodeURIComponent(box.dataset.list)}/items/${box.dataset.id}/toggle`, {});
+        loadLists();
+      });
+    });
+    initSwipe(list, loadLists, true);
+    list.innerHTML += `<div class="swipe-hint">↔ Swipe: rechts erledigt · links löschen</div>`;
+  } catch (e) {
+    list.innerHTML = "<p class='empty-state'>Fehler.</p>";
+  }
+}
+
+function initSwipe(root, reloadFn, isList = false) {
+  root.querySelectorAll(".task-item").forEach((el) => {
+    let startX = 0;
+    el.addEventListener("touchstart", (e) => { startX = e.touches[0].clientX; }, { passive: true });
+    el.addEventListener("touchend", async (e) => {
+      const endX = e.changedTouches[0].clientX;
+      const diff = endX - startX;
+      if (Math.abs(diff) < 80) return;
+      const id = el.dataset.id;
+      if (!isList) {
+        if (diff > 0) await patchJSON(`/api/tasks/${id}/status`, { status: "Erledigt" });
+        else await patchJSON(`/api/tasks/${id}/status`, { status: "Blockiert" }); // links = blockiert statt löschen
+      } else {
+        if (diff > 0) await patchJSON(`/api/lists/${encodeURIComponent(el.dataset.list)}/items/${id}/toggle`, {});
+        else {
+          const method = "DELETE";
+          const r = await fetch(`/api/lists/${encodeURIComponent(el.dataset.list)}/items/${id}`, { method });
+          if (!r.ok) return;
+        }
+      }
+      reloadFn();
+    }, { passive: true });
+  });
 }
 
 function taskRow(t) {
@@ -551,12 +660,18 @@ async function renderExplorer(container) {
   container.innerHTML = `
     <h2 class="page-title">Explorer</h2>
     <div class="explorer-toolbar">
-      <button class="btn-secondary" id="up-btn">⬆ Hoch</button>
-      <button class="btn-secondary" id="new-folder-btn">Neuer Ordner</button>
-      <label class="btn-secondary">Upload<input type="file" id="explorer-upload" style="display:none"></label>
+      <div class="group">
+        <button class="btn-secondary" id="up-btn">⬆ Hoch</button>
+        <button class="btn-secondary" id="new-folder-btn">Neuer Ordner</button>
+        <label class="btn-secondary">Upload<input type="file" id="explorer-upload" style="display:none" multiple></label>
+      </div>
+      <div class="group">
+        <button class="btn-icon active" id="view-grid" title="Grid">▦</button>
+        <button class="btn-icon" id="view-list" title="Liste">☰</button>
+      </div>
     </div>
     <div class="explorer-breadcrumb" id="breadcrumb"></div>
-    <div class="explorer-grid" id="explorer-grid"><div class="loader"></div></div>`;
+    <div class="explorer-grid" id="explorer-grid" data-view="grid"><div class="loader"></div></div>`;
 
   $("#up-btn").addEventListener("click", () => { appState.path = appState.path.split("/").slice(0, -1).join("/"); loadExplorer(); });
   $("#new-folder-btn").addEventListener("click", () => {
@@ -564,16 +679,30 @@ async function renderExplorer(container) {
     if (name) { appState.path = appState.path ? `${appState.path}/${name}` : name; loadExplorer(); }
   });
   $("#explorer-upload").addEventListener("change", async (e) => {
-    if (!e.target.files.length) return;
-    const form = new FormData();
-    form.append("file", e.target.files[0]);
-    const r = await fetch(`/api/explorer/upload?path=${encodeURIComponent(appState.path || "")}`, { method: "POST", body: form });
-    if (r.ok) { flash("Hochgeladen"); loadExplorer(); }
-    else flash("Fehler", "error");
+    for (const file of e.target.files) await uploadFile(file);
     e.target.value = "";
+  });
+  $("#view-grid").addEventListener("click", () => { appState.explorerView = "grid"; $("#explorer-grid").dataset.view = "grid"; $$(".view-toggle").forEach((b) => b.classList.toggle("active", b.id === "view-grid")); });
+  $("#view-list").addEventListener("click", () => { appState.explorerView = "list"; $("#explorer-grid").dataset.view = "list"; $$(".view-toggle").forEach((b) => b.classList.toggle("active", b.id === "view-list")); });
+
+  const grid = $("#explorer-grid");
+  grid.addEventListener("dragover", (e) => { e.preventDefault(); grid.classList.add("drag-over"); });
+  grid.addEventListener("dragleave", () => grid.classList.remove("drag-over"));
+  grid.addEventListener("drop", async (e) => {
+    e.preventDefault();
+    grid.classList.remove("drag-over");
+    for (const file of e.dataTransfer.files) await uploadFile(file);
   });
 
   await loadExplorer();
+}
+
+async function uploadFile(file) {
+  const form = new FormData();
+  form.append("file", file);
+  const r = await fetch(`/api/explorer/upload?path=${encodeURIComponent(appState.path || "")}`, { method: "POST", body: form });
+  if (r.ok) { flash("Hochgeladen"); loadExplorer(); }
+  else flash("Upload fehlgeschlagen", "error");
 }
 
 async function loadExplorer() {
@@ -581,8 +710,9 @@ async function loadExplorer() {
     const items = await getJSON(`/api/explorer?path=${encodeURIComponent(appState.path || "")}`);
     renderBreadcrumb();
     const grid = $("#explorer-grid");
+    grid.dataset.view = appState.explorerView || "grid";
     grid.innerHTML = items.map((it) => `
-      <div class="explorer-item" data-path="${it.path}" data-type="${it.type}">
+      <div class="explorer-item" data-path="${it.path}" data-type="${it.type}" data-name="${it.name}">
         <div class="icon">${it.type === "folder" ? "📁" : iconForFile(it.name)}</div>
         <div class="name">${it.name}</div>
         <div class="meta">${it.type === "file" ? formatBytes(it.size) : "Ordner"}</div>
@@ -590,18 +720,58 @@ async function loadExplorer() {
 
     $$(".explorer-item").forEach((el) => {
       el.addEventListener("click", () => {
-        if (el.dataset.type === "folder") {
-          appState.path = el.dataset.path;
-          loadExplorer();
-        } else {
-          // preview/download
-          window.open(`/files/${encodeURIComponent(el.dataset.path)}`, "_blank");
-        }
+        if (el.dataset.type === "folder") { appState.path = el.dataset.path; loadExplorer(); }
+        else openPreview(el.dataset.path, el.dataset.name);
       });
     });
   } catch (e) {
     $("#explorer-grid").innerHTML = "<p class='empty-state'>Fehler.</p>";
   }
+}
+
+function openPreview(path, name) {
+  const ext = name.split(".").pop().toLowerCase();
+  if (["jpg", "jpeg", "png", "gif", "webp"].includes(ext)) {
+    showLightbox(`/files/${encodeURIComponent(path)}`);
+  } else if (ext === "pdf") {
+    window.open(`/files/${encodeURIComponent(path)}`, "_blank");
+  } else if (["md", "txt", "py", "js", "css", "html", "json"].includes(ext)) {
+    openTextEditor(path, name);
+  } else {
+    window.open(`/files/${encodeURIComponent(path)}`, "_blank");
+  }
+}
+
+function showLightbox(src) {
+  const overlay = document.createElement("div");
+  overlay.className = "lightbox";
+  overlay.innerHTML = `<img src="${src}" alt=""><button class="close-btn">×</button>`;
+  overlay.addEventListener("click", () => overlay.remove());
+  document.body.appendChild(overlay);
+}
+
+async function openTextEditor(path, name) {
+  try {
+    const data = await getJSON(`/api/explorer/file?path=${encodeURIComponent(path)}`);
+    const modal = document.createElement("div");
+    modal.className = "modal show";
+    modal.innerHTML = `
+      <div class="modal-card wide">
+        <div class="modal-header"><h3>${name}</h3><button class="close-modal">×</button></div>
+        <div class="modal-body">
+          <textarea id="file-editor" rows="20" style="width:100%;font-family:monospace">${data.content}</textarea>
+          <button id="save-file" class="btn-primary" style="margin-top:10px">Speichern</button>
+        </div>
+      </div>`;
+    modal.addEventListener("click", (e) => { if (e.target === modal) modal.remove(); });
+    modal.querySelector(".close-modal").addEventListener("click", () => modal.remove());
+    modal.querySelector("#save-file").addEventListener("click", async () => {
+      const content = modal.querySelector("#file-editor").value;
+      const res = await postJSON("/api/explorer/file", { path, content });
+      flash(res.ok ? "Gespeichert" : "Fehler", res.ok ? "ok" : "error");
+    });
+    document.body.appendChild(modal);
+  } catch (e) { flash("Fehler", "error"); }
 }
 
 function renderBreadcrumb() {
@@ -633,18 +803,28 @@ function formatBytes(b) {
 
 // --- Settings ---
 function renderSettings(container) {
+  const isDark = document.body.classList.contains("dark");
   container.innerHTML = `
     <h2 class="page-title">Settings</h2>
-    <div class="card">
-      <div class="settings-group">
-        <h4>Erscheinungsbild</h4>
+    <div class="grid grid-2">
+      <div class="card">
+        <h3>🎨 Erscheinungsbild</h3>
         <div class="setting-row">
           <label>Dark Mode</label>
-          <input type="checkbox" id="dark-toggle" checked>
+          <input type="checkbox" id="dark-toggle" ${isDark ? "checked" : ""}>
         </div>
       </div>
-      <div class="settings-group">
-        <h4>Sicherheit</h4>
+      <div class="card">
+        <h3>🔌 Integrationen</h3>
+        <div class="integration-list">
+          <div class="integration-item ok"><span class="status-dot"></span> Notion</div>
+          <div class="integration-item ok"><span class="status-dot"></span> Open-Meteo Wetter</div>
+          <div class="integration-item ok"><span class="status-dot"></span> Ollama Cloud KI</div>
+          <div class="integration-item gap"><span class="status-dot"></span> Google Calendar (Stufe 2)</div>
+        </div>
+      </div>
+      <div class="card" style="grid-column:1/-1">
+        <h3>🔐 Sicherheit</h3>
         <div class="setting-row">
           <label>Passwort ändern</label>
           <button class="btn-secondary" id="toggle-pw">Ändern</button>
@@ -658,9 +838,15 @@ function renderSettings(container) {
       </div>
     </div>`;
 
-  $("#dark-toggle").addEventListener("change", (e) => {
-    document.body.classList.toggle("dark", e.target.checked);
-  });
+  const toggle = $("#dark-toggle");
+  const applyTheme = () => {
+    document.body.classList.toggle("dark", toggle.checked);
+    document.body.classList.toggle("light", !toggle.checked);
+    localStorage.setItem("hub-theme", toggle.checked ? "dark" : "light");
+  };
+  toggle.addEventListener("change", applyTheme);
+  applyTheme();
+
   $("#toggle-pw").addEventListener("click", () => {
     const form = $("#pw-form");
     form.style.display = form.style.display === "none" ? "block" : "none";
@@ -679,6 +865,19 @@ function renderSettings(container) {
       out.textContent = res.error || "Fehler";
       flash(res.error || "Fehler", "error");
     }
+  });
+}
+
+(function restoreTheme() {
+  const saved = localStorage.getItem("hub-theme");
+  if (saved === "light") document.body.classList.replace("dark", "light");
+})();
+
+function initChatExpand() {
+  const input = $("#chat-input");
+  if (!input) return;
+  input.addEventListener("focus", () => {
+    $(".chat-widget")?.classList.add("expanded");
   });
 }
 

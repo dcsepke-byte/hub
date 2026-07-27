@@ -10,7 +10,7 @@ from flask_socketio import SocketIO, emit
 from app.config import Config
 from app.auth import require_login, verify_password, LoginThrottle
 from app import notion, weather, explorer
-from app import hermes, search as search_module, news, calendar
+from app import hermes, search as search_module, news, calendar, lists
 
 PROJECTS_DATA = [
     {"id": "party-arena", "name": "Party Arena", "icon": "🎮", "color": "#6366f1", "status": "In Arbeit", "tasks": 0, "description": "Mario-Party-ähnliches Webbrowser-Minispiel. Flask + Three.js.", "links": [{"name": "Repo", "url": "https://github.com/dcsepke-byte/DC-Minigame"}, {"name": "Lokal", "url": "http://localhost:5000"}]},
@@ -254,6 +254,34 @@ def api_create_event():
     if not title or not start:
         return jsonify({"ok": False, "error": "Titel und Startzeit erforderlich"}), 400
     return jsonify(calendar.add_event(title, start, data.get("duration", 60), data.get("project", "")))
+
+
+@app.route("/api/lists")
+@require_login
+def api_lists():
+    return jsonify(lists.get_lists())
+
+
+@app.route("/api/lists/<list_name>/items", methods=["POST"])
+@require_login
+def api_add_list_item(list_name):
+    data = request.get_json(silent=True) or {}
+    text = data.get("text", "").strip()
+    if not text:
+        return jsonify({"ok": False, "error": "Text fehlt"}), 400
+    return jsonify(lists.add_list_item(list_name, text))
+
+
+@app.route("/api/lists/<list_name>/items/<int:item_id>/toggle", methods=["PATCH"])
+@require_login
+def api_toggle_list_item(list_name, item_id):
+    return jsonify(lists.toggle_list_item(list_name, item_id))
+
+
+@app.route("/api/lists/<list_name>/items/<int:item_id>", methods=["DELETE"])
+@require_login
+def api_delete_list_item(list_name, item_id):
+    return jsonify(lists.delete_list_item(list_name, item_id))
 
 
 @socketio.on("chat_message")

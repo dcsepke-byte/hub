@@ -16,6 +16,16 @@
   --transition: 0.2s ease;
 }
 
+body.light {
+  --bg: #f7f7f8;
+  --surface: #ffffff;
+  --surface-2: #f4f4f5;
+  --surface-3: #e4e4e7;
+  --text: #18181b;
+  --muted: #71717a;
+  --shadow: 0 10px 30px rgba(0,0,0,0.1);
+}
+
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; padding: 0; height: 100%; }
 body {
@@ -150,6 +160,8 @@ body {
   box-shadow: 0 4px 16px rgba(0,0,0,0.2);
 }
 .card h3 { margin: 0 0 12px; font-size: 16px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+.card { transition: transform var(--transition), box-shadow var(--transition); }
+.card:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
 .card .value { font-size: 32px; font-weight: 700; }
 .card .sub { font-size: 13px; color: var(--muted); margin-top: 6px; }
 
@@ -185,8 +197,15 @@ body {
 .task-title { flex: 1; }
 .task-meta { font-size: 12px; color: var(--muted); }
 .task-filter { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
-.task-filter button { padding: 8px 14px; border-radius: 999px; background: var(--surface-2); border: none; color: var(--muted); cursor: pointer; }
+.task-filter button { padding: 8px 14px; border-radius: 999px; background: var(--surface-2); border: none; color: var(--muted); cursor: pointer; transition: all var(--transition); }
+.task-filter button:hover { background: var(--surface-3); }
 .task-filter button.active { background: var(--accent); color: #fff; }
+
+.task-tabs, .list-tabs { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+.task-tabs button, .list-tabs button { padding: 8px 16px; border-radius: 999px; background: var(--surface-2); border: none; color: var(--muted); cursor: pointer; transition: all var(--transition); }
+.task-tabs button.active, .list-tabs button.active { background: var(--accent); color: #fff; }
+.list-add-form { display: flex; gap: 8px; margin-top: 12px; }
+.list-add-form input { flex: 1; padding: 10px 12px; background: var(--surface-2); border: 1px solid var(--surface-3); border-radius: var(--radius-sm); color: var(--text); }
 
 /* Projects */
 .project-card {
@@ -201,10 +220,14 @@ body {
 .project-card .tasks { margin-top: 10px; font-size: 13px; }
 
 /* Explorer */
-.explorer-toolbar { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
-.explorer-breadcrumb { display: flex; align-items: center; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
-.explorer-breadcrumb button { background: var(--surface-2); border: none; color: var(--text); padding: 6px 10px; border-radius: 8px; cursor: pointer; }
-.explorer-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+.explorer-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+.explorer-toolbar .group { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.explorer-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; transition: all var(--transition); }
+.explorer-grid[data-view="list"] { grid-template-columns: 1fr; }
+.explorer-grid[data-view="list"] .explorer-item { flex-direction: row; align-items: center; gap: 12px; text-align: left; }
+.explorer-grid[data-view="list"] .explorer-item .icon { font-size: 24px; margin: 0; }
+.explorer-grid[data-view="list"] .explorer-item .meta { margin-left: auto; }
+.explorer-grid.drag-over { outline: 2px dashed var(--accent); outline-offset: 4px; background: rgba(99,102,241,0.05); }
 .explorer-item {
   background: var(--surface-2); border-radius: var(--radius-sm); padding: 14px; text-align: center; cursor: pointer;
   border: 1px solid transparent; transition: border var(--transition);
@@ -213,6 +236,16 @@ body {
 .explorer-item .icon { font-size: 32px; margin-bottom: 8px; }
 .explorer-item .name { font-size: 13px; word-break: break-word; }
 .explorer-item .meta { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+.btn-icon { width: 34px; height: 34px; border-radius: 8px; background: var(--surface-2); border: none; color: var(--muted); cursor: pointer; }
+.btn-icon.active { background: var(--accent); color: #fff; }
+
+.lightbox {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 200;
+  display: flex; align-items: center; justify-content: center;
+}
+.lightbox img { max-width: 90vw; max-height: 90vh; border-radius: var(--radius-sm); }
+.lightbox .close-btn { position: fixed; top: 18px; right: 18px; background: transparent; border: none; color: #fff; font-size: 36px; cursor: pointer; }
 
 /* Buttons */
 .btn-primary {
@@ -257,8 +290,28 @@ body {
 .settings-group h4 { margin: 0 0 10px; color: var(--muted); }
 .setting-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--surface-2); }
 .setting-row label { font-size: 14px; }
+.integration-list { display: flex; flex-direction: column; gap: 10px; }
+.integration-item { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+.integration-item.gap { color: var(--muted); }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); }
+.integration-item.gap .status-dot { background: var(--warning); }
 
-/* Scrollbar */
+/* Chat expand */
+.chat-widget.expanded {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: min(900px, 94vw); height: min(700px, 90vh); z-index: 130;
+  box-shadow: var(--shadow); border: 1px solid var(--surface-3);
+}
+
+/* Daily report scrollable */
+#daily-report { max-height: 240px; overflow-y: auto; font-size: 14px; line-height: 1.6; }
+.report-day { border-bottom: 1px solid var(--surface-2); padding: 10px 0; }
+.report-day:last-child { border-bottom: none; }
+.report-day .date { font-size: 12px; color: var(--accent); margin-bottom: 4px; }
+
+/* Swipe hint */
+.task-item { user-select: none; }
+.swipe-hint { font-size: 11px; color: var(--muted); text-align: center; margin-top: 8px; }
 ::-webkit-scrollbar { width: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 4px; }
