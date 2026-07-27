@@ -1,5 +1,5 @@
 const currentPage = "{{ page }}";
-let appState = { page: currentPage, projectFilter: null, taskFilter: "all", path: "" };
+let appState = { page: currentPage, projectFilter: null, taskFilter: "all", path: "", projectDetail: null };
 let socket = null;
 let chatHistory = [];
 
@@ -12,6 +12,7 @@ const PAGES = {
   tasks: renderTasks,
   explorer: renderExplorer,
   settings: renderSettings,
+  project: renderProjectDetail,
 };
 
 function init() {
@@ -227,7 +228,12 @@ async function renderHome(container) {
           <button type="submit" class="btn-primary">➤</button>
         </form>
       </div>
-      <div class="card" id="tasks-card"><div class="loader"></div></div>
+      <div class="card" id="calendar-card">
+        <h3>🗓️ Termine heute</h3>
+        <div id="today-events" class="loader"></div>
+        <button class="btn-secondary" id="add-event-btn" style="margin-top:10px;width:100%">+ Termin</button>
+      </div>
+      <div class="card" id="tasks-card"><h3>✅ Heutige To-Do</h3><div class="loader"></div></div>
       <div class="card" id="day-card">
         <h3>📅 Tagesbericht</h3>
         <div id="daily-report" class="loader"></div>
@@ -264,7 +270,39 @@ async function renderHome(container) {
 
   loadWeather();
   loadTodayTasks();
+  loadTodayEvents();
   loadNews();
+}
+
+async function loadTodayEvents() {
+  const el = $("#today-events");
+  if (!el) return;
+  try {
+    const data = await getJSON("/api/calendar");
+    el.classList.remove("loader");
+    const events = data.today || [];
+    el.innerHTML = events.length
+      ? events.map((e) => `
+        <div class="event-row">
+          <div class="event-title">${e.title}</div>
+          <div class="event-date">${new Date(e.start).toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'})}</div>
+        </div>`).join("")
+      : "<p class='empty-state'>Keine Termine heute.</p>";
+  } catch (e) {
+    if (el) { el.classList.remove("loader"); el.innerHTML = "<p class='empty-state'>Fehler.</p>"; }
+  }
+  const btn = $("#add-event-btn");
+  if (btn) btn.addEventListener("click", () => {
+    const title = prompt("Titel:");
+    if (!title) return;
+    const time = prompt("Uhrzeit (HH:MM, z.B. 14:30):");
+    if (!time) return;
+    const today = new Date().toISOString().slice(0, 10);
+    postJSON("/api/calendar", { title, start: `${today}T${time}:00` }).then((r) => {
+      if (r.ok) { flash("Termin hinzugefügt"); loadTodayEvents(); }
+      else flash("Fehler", "error");
+    });
+  });
 }
 
 async function loadNews() {
@@ -381,10 +419,57 @@ async function renderProjects(container) {
         <div class="tasks">${p.tasks} offene Task${p.tasks === 1 ? "" : "s"}</div>
       </div>`).join("");
     $$(".project-card").forEach((card) => {
-      card.addEventListener("click", () => { appState.projectFilter = card.dataset.project; navigate("tasks"); });
+      card.addEventListener("click", () => { appState.projectDetail = card.dataset.project; navigate("project"); });
     });
   } catch (e) {
     $("#project-grid").innerHTML = "<p class='empty-state'>Projekte konnten nicht geladen werden.</p>";
+  }
+}
+
+async function renderProjectDetail(container) {
+  const id = appState.projectDetail;
+  if (!id) { navigate("projects"); return; }
+  container.innerHTML = `
+    <h2 class="page-title" id="pd-title"></h2>
+    <div class="grid grid-2">
+      <div class="card">
+        <h3>📋 Offene Tasks</h3>
+        <div id="pd-tasks" class="loader"></div>
+      </div>
+      <div class="card">
+        <h3>📅 Kommende Termine</h3>
+        <div id="pd-events" class="loader"></div>
+      </div>
+      <div class="card" style="grid-column:1/-1">
+        <h3>🔗 Links</h3>
+        <div id="pd-links" class="loader"></div>
+      </div>
+    </div>
+  `;
+  try {
+    const p = await getJSON(`/api/projects/${encodeURIComponent(id)}`);
+    $("#pd-title").textContent = `${p.icon} ${p.name}`;
+    $("#pd-title").style.color = p.color;
+    const tasksEl = $("#pd-tasks");
+    tasksEl.classList.remove("loader");
+    tasksEl.innerHTML = p.tasks?.length ? p.tasks.map(taskRow).join("") : "<p class='empty-state'>Keine offenen Tasks.</p>";
+    bindTaskCheckboxes(tasksEl, () => renderProjectDetail(container));
+    const eventsEl = $("#pd-events");
+    eventsEl.classList.remove("loader");
+    eventsEl.innerHTML = p.events?.length
+      ? p.events.map((e) => `
+        <div class="event-row">
+          <div class="event-title">${e.title}</div>
+          <div class="event-date">${new Date(e.start).toLocaleString('de-DE', {dateStyle:'short', timeStyle:'short'})}</div>
+        </div>`).join("")
+      : "<p class='empty-state'>Keine Termine.</p>";
+    const linksEl = $("#pd-links");
+    linksEl.classList.remove("loader");
+    linksEl.innerHTML = p.links?.length
+      ? p.links.map((l) => `<a href="${l.url}" target="_blank" class="project-link" style="border-color:${p.color}">${l.name}</a>`).join("")
+      : "<p class='empty-state'>Keine Links.</p>";
+  } catch (e) {
+    container.innerHTML = "<p class='empty-state'>Projekt konnte nicht geladen werden.</p>";
   }
 }
 

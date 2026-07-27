@@ -10,7 +10,16 @@ from flask_socketio import SocketIO, emit
 from app.config import Config
 from app.auth import require_login, verify_password, LoginThrottle
 from app import notion, weather, explorer
-from app import hermes, search as search_module, news
+from app import hermes, search as search_module, news, calendar
+
+PROJECTS_DATA = [
+    {"id": "party-arena", "name": "Party Arena", "icon": "🎮", "color": "#6366f1", "status": "In Arbeit", "tasks": 0, "description": "Mario-Party-ähnliches Webbrowser-Minispiel. Flask + Three.js.", "links": [{"name": "Repo", "url": "https://github.com/dcsepke-byte/DC-Minigame"}, {"name": "Lokal", "url": "http://localhost:5000"}]},
+    {"id": "ki-videos", "name": "KI-Videos", "icon": "🎬", "color": "#ec4899", "status": "Geplant", "tasks": 0, "description": "Automatisierter Faceless-Video-Workflow.", "links": [{"name": "Konzept", "url": "https://www.notion.so/"}]},
+    {"id": "hochzeit", "name": "Hochzeit", "icon": "💍", "color": "#a855f7", "status": "In Planung", "tasks": 0, "description": "Überraschungshochzeit 31.10.2026, Halloween-Motto.", "links": []},
+    {"id": "server", "name": "Server", "icon": "🔧", "color": "#f59e0b", "status": "Aktiv", "tasks": 0, "description": "Hostinger VPS, Docker, Hermes Agent.", "links": [{"name": "Hermes", "url": "https://hermes-agent.nousresearch.com/docs"}]},
+    {"id": "klavier", "name": "Klavier-Coach", "icon": "🎹", "color": "#10b981", "status": "Aktiv", "tasks": 0, "description": "SM-2 basierter Klavier-Lern-Coach.", "links": [{"name": "App", "url": "http://localhost:5125"}]},
+    {"id": "bangkok", "name": "Bangkok", "icon": "🇹🇭", "color": "#ef4444", "status": "Vorbereitung", "tasks": 0, "description": "ATS Training ORL, 28.07.-09.08.2026.", "links": []},
+]
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -205,14 +214,7 @@ def api_change_password():
 @app.route("/api/projects")
 @require_login
 def api_projects():
-    projects_data = [
-        {"id": "party-arena", "name": "Party Arena", "icon": "🎮", "color": "#6366f1", "status": "In Arbeit", "tasks": 0},
-        {"id": "ki-videos", "name": "KI-Videos", "icon": "🎬", "color": "#ec4899", "status": "Geplant", "tasks": 0},
-        {"id": "hochzeit", "name": "Hochzeit", "icon": "💍", "color": "#a855f7", "status": "In Planung", "tasks": 0},
-        {"id": "server", "name": "Server", "icon": "🔧", "color": "#f59e0b", "status": "Aktiv", "tasks": 0},
-        {"id": "klavier", "name": "Klavier-Coach", "icon": "🎹", "color": "#10b981", "status": "Aktiv", "tasks": 0},
-        {"id": "bangkok", "name": "Bangkok", "icon": "🇹🇭", "color": "#ef4444", "status": "Vorbereitung", "tasks": 0},
-    ]
+    projects_data = [dict(p) for p in PROJECTS_DATA]
     try:
         tasks = notion.get_tasks(status="Offen", limit=100)
         for p in projects_data:
@@ -222,7 +224,37 @@ def api_projects():
     return jsonify(projects_data)
 
 
-# --- SocketIO Hermes Chat ---
+@app.route("/api/projects/<project_id>")
+@require_login
+def api_project_detail(project_id):
+    project = next((p for p in PROJECTS_DATA if p["id"] == project_id), None)
+    if not project:
+        return jsonify({"error": "Projekt nicht gefunden"}), 404
+    result = dict(project)
+    result["tasks"] = notion.get_tasks(filter_project=project["name"], status="Offen")
+    result["events"] = calendar.upcoming_events(days=14, limit=5)
+    return jsonify(result)
+
+
+@app.route("/api/calendar")
+@require_login
+def api_calendar():
+    return jsonify({
+        "today": calendar.today_events(limit=5),
+        "upcoming": calendar.upcoming_events(days=7, limit=10),
+    })
+
+
+@app.route("/api/calendar", methods=["POST"])
+@require_login
+def api_create_event():
+    data = request.get_json(silent=True) or {}
+    title = data.get("title", "").strip()
+    start = data.get("start", "").strip()
+    if not title or not start:
+        return jsonify({"ok": False, "error": "Titel und Startzeit erforderlich"}), 400
+    return jsonify(calendar.add_event(title, start, data.get("duration", 60), data.get("project", "")))
+
 
 @socketio.on("chat_message")
 def handle_chat_message(data):
