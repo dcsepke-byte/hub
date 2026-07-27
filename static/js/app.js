@@ -232,6 +232,10 @@ async function renderHome(container) {
         <h3>📅 Tagesbericht</h3>
         <div id="daily-report" class="loader"></div>
       </div>
+      <div class="card" id="news-card">
+        <h3>📰 News — tagesschau.de</h3>
+        <div id="news-list" class="loader"></div>
+      </div>
     </div>
   `;
 
@@ -260,6 +264,28 @@ async function renderHome(container) {
 
   loadWeather();
   loadTodayTasks();
+  loadNews();
+}
+
+async function loadNews() {
+  const el = $("#news-list");
+  if (!el) return;
+  try {
+    const data = await getJSON("/api/news");
+    el.classList.remove("loader");
+    if (!data.ok || !data.items.length) {
+      el.innerHTML = "<p class='empty-state'>News momentan nicht verfügbar.</p>";
+      return;
+    }
+    el.innerHTML = data.items.map((n) => `
+      <a href="${n.url}" target="_blank" class="news-item">
+        <div class="news-title">${n.title}</div>
+        <div class="news-desc">${n.description}</div>
+        <div class="news-date">${n.published ? new Date(n.published).toLocaleString('de-DE', {weekday:'short', hour:'2-digit', minute:'2-digit'}) : ''}</div>
+      </a>`).join("");
+  } catch (e) {
+    if (el) { el.classList.remove("loader"); el.innerHTML = "<p class='empty-state'>Fehler beim Laden.</p>"; }
+  }
 }
 
 async function loadDailyReport() {

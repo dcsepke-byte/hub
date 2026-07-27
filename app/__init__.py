@@ -10,7 +10,7 @@ from flask_socketio import SocketIO, emit
 from app.config import Config
 from app.auth import require_login, verify_password, LoginThrottle
 from app import notion, weather, explorer
-from app import hermes, search as search_module
+from app import hermes, search as search_module, news
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -83,6 +83,12 @@ def settings():
 @require_login
 def api_weather():
     return jsonify(weather.get_weather())
+
+
+@app.route("/api/news")
+@require_login
+def api_news():
+    return jsonify(news.fetch_news(limit=5))
 
 
 @app.route("/api/search")
