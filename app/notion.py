@@ -63,15 +63,18 @@ def update_task_status(page_id: str, status: str) -> bool:
     return r.ok
 
 
-def create_task(title: str, project: str = "", status: str = "Offen") -> dict:
+def create_task(title: str, project: str = "", status: str = "Offen", due: str = "") -> dict:
     url = "https://api.notion.com/v1/pages"
+    props = {
+        "Aufgabe": {"title": [{"text": {"content": title}}]},
+        "Projekt": {"select": {"name": project or "Persoenlich"}},
+        "Status": {"status": {"name": status}},
+    }
+    if due:
+        props["Fällig am"] = {"date": {"start": due}}
     body = {
         "parent": {"database_id": Config.NOTION_TASKS_DB},
-        "properties": {
-            "Aufgabe": {"title": [{"text": {"content": title}}]},
-            "Projekt": {"select": {"name": project or "Persoenlich"}},
-            "Status": {"status": {"name": status}},
-        },
+        "properties": props,
     }
     r = requests.post(url, headers=HEADERS, json=body, timeout=20)
     return _safe_json(r)

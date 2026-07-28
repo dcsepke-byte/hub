@@ -1,46 +1,45 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#0f0f11">
-  <title>HUB — Danny's Workspace</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>HUB — Danny's Central Workspace</title>
   <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='images/icon.svg') }}">
-  <link rel="apple-touch-icon" href="{{ url_for('static', filename='images/icon.svg') }}">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='images/icon-192.png') }}">
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body class="dark">
-  <header class="topbar">
-    <button class="burger" id="burger" aria-label="Menü">☰</button>
-    <div class="brand">🏠 HUB</div>
+  <div class="ambient-bg"></div>
+
+  <header class="topbar glass">
+    <div class="brand">
+      <img src="{{ url_for('static', filename='images/apps/hub.png') }}" alt="" width="32" height="32">
+      <span>HUB</span>
+    </div>
+
+    <nav class="icon-nav" id="iconNav">
+      <a href="#home" data-page="home" class="nav-icon active" title="Home"><span>🏠</span></a>
+      <a href="#projects" data-page="projects" class="nav-icon" title="Projekte"><span>📁</span></a>
+      <a href="#tasks" data-page="tasks" class="nav-icon" title="To-Do"><span>✅</span></a>
+      <a href="#explorer" data-page="explorer" class="nav-icon" title="Explorer"><span>🗂️</span></a>
+      <a href="#settings" data-page="settings" class="nav-icon" title="Settings"><span>⚙️</span></a>
+    </nav>
+
     <div class="top-actions">
-      <div class="search-box">
+      <div class="search-wrap">
         <input type="text" id="globalSearch" placeholder="Suchen..." autocomplete="off">
-        <div class="search-results" id="searchResults"></div>
+        <div class="search-results glass" id="searchResults"></div>
       </div>
       <button id="quickAdd" class="icon-btn" title="Schnell hinzufügen">+</button>
-      <a href="{{ url_for('logout') }}" class="icon-btn" title="Abmelden">→</a>
     </div>
   </header>
 
-  <nav class="sidebar" id="sidebar">
-    <a href="#home" data-page="home" class="nav-item active">🏠 Home</a>
-    <a href="#projects" data-page="projects" class="nav-item">📁 Projekte</a>
-    <a href="#tasks" data-page="tasks" class="nav-item">✅ To-Do</a>
-    <a href="#explorer" data-page="explorer" class="nav-item">📂 Explorer</a>
-    <a href="#settings" data-page="settings" class="nav-item">⚙️ Settings</a>
-  </nav>
+  <div id="overlay"></div>
 
-  <div class="overlay" id="overlay"></div>
-
-  <main class="content" id="content">
-    <!-- Views werden per JS gerendert -->
-  </main>
-
-  <div class="fab" id="fab" title="Schnell hinzufügen">+</div>
-
-  <!-- Quick-Add Modal -->
-  <div class="modal" id="quickAddModal">
+  <aside id="quickAddModal" class="modal">
     <div class="modal-card">
       <div class="modal-header">
         <h3>Schnell hinzufügen</h3>
@@ -48,30 +47,34 @@
       </div>
       <div class="modal-body">
         <div class="quick-types">
-          <button data-type="task" class="quick-type active">✅ Task</button>
-          <button data-type="note" class="quick-type">📝 Notiz</button>
-          <button data-type="file" class="quick-type">📎 Datei</button>
+          <button class="quick-type active" data-type="task">Task</button>
+          <button class="quick-type" data-type="note">Notiz</button>
+          <button class="quick-type" data-type="event">Termin</button>
+          <button class="quick-type" data-type="file">Datei</button>
         </div>
         <form id="quickForm">
           <input type="text" id="quickTitle" placeholder="Titel" required>
           <select id="quickProject">
-            <option value="Persoenlich">Persoenlich</option>
+            <option value="Persoenlich">Persönlich</option>
             <option value="Party Arena">Party Arena</option>
             <option value="KI-Videos">KI-Videos</option>
             <option value="Hochzeit">Hochzeit</option>
             <option value="Server">Server</option>
             <option value="Klavier-Coach">Klavier-Coach</option>
-            <option value="Bangkok">Bangkok</option>
           </select>
+          <input type="date" id="quickDue" placeholder="Fällig am" style="display:none">
+          <input type="datetime-local" id="quickEventTime" style="display:none">
           <input type="file" id="quickFile" style="display:none">
-          <button type="submit" class="btn-primary">Speichern</button>
+          <button type="submit" class="btn-primary">Erstellen</button>
         </form>
       </div>
     </div>
-  </div>
+  </aside>
 
-  <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
-  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <main id="content"></main>
+
+  <button id="fab" class="fab">+</button>
+
   <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>
 </html>

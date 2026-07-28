@@ -34,10 +34,36 @@ def list_directory(subpath: str = "") -> list[dict]:
     return items
 
 
+def tree(subpath: str = "") -> list[dict]:
+    target = _resolve_path(subpath)
+    if target.is_file():
+        return []
+    children = []
+    for entry in sorted(target.iterdir(), key=lambda e: e.name.lower()):
+        if entry.is_dir():
+            rel = entry.relative_to(BASE).as_posix()
+            children.append({"name": entry.name, "path": rel, "children": tree(rel)})
+    return children
+
+
 def ensure_dir(path: str) -> Path:
     target = _resolve_path(path)
     target.mkdir(parents=True, exist_ok=True)
     return target
+
+
+def create_folder(subpath: str, name: str) -> dict:
+    parent = _resolve_path(subpath)
+    new = parent / name
+    new.mkdir(parents=True, exist_ok=True)
+    return {"name": new.name, "path": new.relative_to(BASE).as_posix(), "type": "folder"}
+
+
+def rename_item(old: str, new_name: str) -> dict:
+    target = _resolve_path(old)
+    dest = target.parent / new_name
+    target.rename(dest)
+    return {"path": dest.relative_to(BASE).as_posix(), "name": dest.name}
 
 
 def save_file(subpath: str, file_storage) -> dict:

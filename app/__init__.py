@@ -11,15 +11,9 @@ from app.config import Config
 from app.auth import require_login, verify_password, LoginThrottle
 from app import notion, weather, explorer
 from app import hermes, search as search_module, news, calendar, lists
+from app import projects as projects_module
 
-PROJECTS_DATA = [
-    {"id": "party-arena", "name": "Party Arena", "icon": "🎮", "color": "#6366f1", "status": "In Arbeit", "tasks": 0, "description": "Mario-Party-ähnliches Webbrowser-Minispiel. Flask + Three.js.", "links": [{"name": "Repo", "url": "https://github.com/dcsepke-byte/DC-Minigame"}, {"name": "Lokal", "url": "http://localhost:5000"}]},
-    {"id": "ki-videos", "name": "KI-Videos", "icon": "🎬", "color": "#ec4899", "status": "Geplant", "tasks": 0, "description": "Automatisierter Faceless-Video-Workflow.", "links": [{"name": "Konzept", "url": "https://www.notion.so/"}]},
-    {"id": "hochzeit", "name": "Hochzeit", "icon": "💍", "color": "#a855f7", "status": "In Planung", "tasks": 0, "description": "Überraschungshochzeit 31.10.2026, Halloween-Motto.", "links": []},
-    {"id": "server", "name": "Server", "icon": "🔧", "color": "#f59e0b", "status": "Aktiv", "tasks": 0, "description": "Hostinger VPS, Docker, Hermes Agent.", "links": [{"name": "Hermes", "url": "https://hermes-agent.nousresearch.com/docs"}]},
-    {"id": "klavier", "name": "Klavier-Coach", "icon": "🎹", "color": "#10b981", "status": "Aktiv", "tasks": 0, "description": "SM-2 basierter Klavier-Lern-Coach.", "links": [{"name": "App", "url": "http://localhost:5125"}]},
-    {"id": "bangkok", "name": "Bangkok", "icon": "🇹🇭", "color": "#ef4444", "status": "Vorbereitung", "tasks": 0, "description": "ATS Training ORL, 28.07.-09.08.2026.", "links": []},
-]
+PROJECTS_DATA = []
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -141,9 +135,11 @@ def api_create_task():
     data = request.get_json(silent=True) or {}
     title = data.get("title", "").strip()
     project = data.get("project", "Persoenlich").strip()
+    due = data.get("due", "").strip()
+    status = data.get("status", "Offen").strip()
     if not title:
         return jsonify({"ok": False, "error": "Titel fehlt"}), 400
-    return jsonify(notion.create_task(title, project))
+    return jsonify(notion.create_task(title, project, status, due))
 
 
 @app.route("/api/notes", methods=["POST"])
@@ -197,6 +193,26 @@ def api_explorer_delete():
     return jsonify({"ok": explorer.delete_item(data.get("path", ""))})
 
 
+@app.route("/api/explorer/tree")
+@require_login
+def api_explorer_tree():
+    return jsonify(explorer.tree())
+
+
+@app.route("/api/explorer/folder", methods=["POST"])
+@require_login
+def api_explorer_folder():
+    data = request.get_json(silent=True) or {}
+    return jsonify(explorer.create_folder(data.get("path", ""), data.get("name", "Neuer Ordner")))
+
+
+@app.route("/api/explorer/rename", methods=["POST"])
+@require_login
+def api_explorer_rename():
+    data = request.get_json(silent=True) or {}
+    return jsonify(explorer.rename_item(data.get("path", ""), data.get("name", "")))
+
+
 @app.route("/api/settings/password", methods=["POST"])
 @require_login
 def api_change_password():
@@ -214,26 +230,56 @@ def api_change_password():
 @app.route("/api/projects")
 @require_login
 def api_projects():
-    projects_data = [dict(p) for p in PROJECTS_DATA]
+    projects_data = projects_module.list_projects()
     try:
         tasks = notion.get_tasks(status="Offen", limit=100)
         for p in projects_data:
             p["tasks"] = sum(1 for t in tasks if t.get("project") == p["name"])
+            p["links"] = p.get("links", [])
     except Exception:
-        pass
+        for p in projects_data:
+            p["tasks"] = 0
+            p["links"] = p.get("links", [])
     return jsonify(projects_data)
 
 
-@app.route("/api/projects/<project_id>")
+@app.route("/api/projects", methods=["POST"])
+@require_login
+def api_create_project():
+    data = request.get_json(silent=True) or {}
+    return jsonify(projects_module.create_project(
+        data.get("name", "").strip(),
+        data.get("icon", "📁").strip(),
+        data.get("color", "#6366f1").strip(),
+        data.get("status", "In Arbeit").strip(),
+        data.get("description", "").strip(),
+        data.get("live_url", "").strip(),
+        data.get("repo_url", "").strip(),
+    ))
+
+
+@app.route("/api/projects/<int:project_id>", methods=["PATCH"])
+@require_login
+def api_update_project(project_id):
+    data = request.get_json(silent=True) or {}
+    return jsonify(projects_module.update_project(project_id, **data))
+
+
+@app.route("/api/projects/<int:project_id>", methods=["DELETE"])
+@require_login
+def api_delete_project(project_id):
+    return jsonify(projects_module.delete_project(project_id))
+
+
+@app.route("/api/projects/<int:project_id>")
 @require_login
 def api_project_detail(project_id):
-    project = next((p for p in PROJECTS_DATA if p["id"] == project_id), None)
+    project = projects_module.get_project(project_id)
     if not project:
         return jsonify({"error": "Projekt nicht gefunden"}), 404
-    result = dict(project)
-    result["tasks"] = notion.get_tasks(filter_project=project["name"], status="Offen")
-    result["events"] = calendar.upcoming_events(days=14, limit=5)
-    return jsonify(result)
+    project["tasks"] = notion.get_tasks(filter_project=project["name"], status="Offen")
+    project["events"] = calendar.upcoming_events(days=14, limit=5)
+    return jsonify(project)
 
 
 @app.route("/api/calendar")

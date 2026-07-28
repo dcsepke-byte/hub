@@ -1,5 +1,5 @@
 const currentPage = "{{ page }}";
-let appState = { page: currentPage, projectFilter: null, taskFilter: "all", path: "", projectDetail: null };
+let appState = { page: currentPage, projectFilter: null, taskFilter: "all", path: "", projectDetail: null, activeList: "Einkauf", explorerView: "grid" };
 let socket = null;
 let chatHistory = [];
 
@@ -18,7 +18,6 @@ const PAGES = {
 function init() {
   initNav();
   initSearch();
-  initSidebar();
   initQuickAdd();
   initSocket();
   navigate(location.hash.slice(1) || currentPage || "home", false);
@@ -26,11 +25,10 @@ function init() {
 }
 
 function initNav() {
-  $$(".nav-item").forEach((el) => {
+  $$("#iconNav a").forEach((el) => {
     el.addEventListener("click", (e) => {
       e.preventDefault();
       navigate(el.dataset.page);
-      closeSidebar();
     });
   });
 }
@@ -62,37 +60,19 @@ function initSearch() {
 function renderSearchResults(data) {
   const box = $("#searchResults");
   const items = [];
-  (data.projects || []).forEach((p) => items.push({ type: "Projekt", title: p.name, action: () => { appState.taskFilter = p.name; navigate("tasks"); } }));
+  (data.projects || []).forEach((p) => items.push({ type: "Projekt", title: p.name, action: () => { appState.projectDetail = p.id; navigate("project"); } }));
   (data.tasks || []).forEach((t) => items.push({ type: "Task", title: t.title, meta: t.project, action: () => window.open(t.url, "_blank") }));
   (data.files || []).forEach((f) => items.push({ type: f.type === "folder" ? "Ordner" : "Datei", title: f.name, action: () => {
     if (f.type === "folder") { appState.path = f.path; navigate("explorer"); }
     else window.open(`/files/${encodeURIComponent(f.path)}`, "_blank");
   } }));
-
   box.innerHTML = items.length
-    ? items.map((it) => `<div class="search-result" data-action="">
-        <div class="type">${it.type}</div>
-        <div class="title">${it.title}${it.meta ? ` <span style="color:var(--muted);font-size:12px">(${it.meta})</span>` : ""}</div>
-      </div>`).join("")
+    ? items.map((it) => `<div class="search-result"><div class="type">${it.type}</div><div>${it.title}${it.meta ? ` <span style="color:var(--text-tertiary);font-size:12px">(${it.meta})</span>` : ""}</div></div>`).join("")
     : `<div class="search-empty">Keine Ergebnisse</div>`;
   box.classList.add("show");
-
   box.querySelectorAll(".search-result").forEach((el, i) => {
     el.addEventListener("click", () => { items[i].action(); box.classList.remove("show"); $("#globalSearch").value = ""; });
   });
-}
-
-function initSidebar() {
-  $("#burger").addEventListener("click", () => {
-    $("#sidebar").classList.toggle("open");
-    $("#overlay").classList.toggle("show");
-  });
-  $("#overlay").addEventListener("click", closeSidebar);
-}
-
-function closeSidebar() {
-  $("#sidebar").classList.remove("open");
-  $("#overlay").classList.remove("show");
 }
 
 function initQuickAdd() {
@@ -103,46 +83,46 @@ function initQuickAdd() {
   $("#fab").addEventListener("click", show);
   $(".close-modal").addEventListener("click", hide);
   modal.addEventListener("click", (e) => { if (e.target === modal) hide(); });
-
   let qtype = "task";
   $$(".quick-type").forEach((btn) => {
     btn.addEventListener("click", () => {
       $$(".quick-type").forEach((b) => b.classList.remove("active"));
       btn.classList.add("active");
       qtype = btn.dataset.type;
+      $("#quickDue").style.display = qtype === "task" ? "block" : "none";
+      $("#quickEventTime").style.display = qtype === "event" ? "block" : "none";
       $("#quickFile").style.display = qtype === "file" ? "block" : "none";
     });
   });
-
   $("#quickForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     const title = $("#quickTitle").value.trim();
     const project = $("#quickProject").value;
     if (!title && qtype !== "file") return;
-
     if (qtype === "task") {
-      const res = await postJSON("/api/tasks", { title, project });
-      if (res && (res.id || res.ok !== false)) {
-        flash("Task erstellt");
-        if (appState.page === "tasks") renderTasks();
-      } else {
-        flash("Fehler beim Erstellen", "error");
-      }
+      const due = $("#quickDue").value;
+      const res = await postJSON("/api/tasks", { title, project, due, status: "Offen" });
+      flash(res.id || res.ok !== false ? "Task erstellt" : "Fehler", res.id ? "ok" : "error");
     } else if (qtype === "note") {
-      // Note = Notion Wissens-DB
       const res = await postJSON("/api/notes", { title, project, content: "" });
       flash(res?.ok ? "Notiz erstellt" : "Fehler", res?.ok ? "ok" : "error");
+    } else if (qtype === "event") {
+      const time = $("#quickEventTime").value;
+      if (!time) return flash("Zeit wählen", "error");
+      const res = await postJSON("/api/calendar", { title, start: time, project });
+      flash(res?.ok ? "Termin erstellt" : "Fehler", res?.ok ? "ok" : "error");
     } else if (qtype === "file") {
       const fileInput = $("#quickFile");
       if (!fileInput.files.length) return flash("Keine Datei", "error");
       const form = new FormData();
       form.append("file", fileInput.files[0]);
       const res = await fetch(`/api/explorer/upload?path=${encodeURIComponent(appState.path || "")}`, { method: "POST", body: form });
-      if (res.ok) { flash("Datei hochgeladen"); if (appState.page === "explorer") renderExplorer(); }
-      else flash("Upload fehlgeschlagen", "error");
+      flash(res.ok ? "Datei hochgeladen" : "Upload fehlgeschlagen", res.ok ? "ok" : "error");
     }
     hide();
     $("#quickForm").reset();
+    if (appState.page === "tasks") renderTasks();
+    if (appState.page === "explorer") renderExplorer();
   });
 }
 
@@ -156,20 +136,17 @@ function initSocket() {
     const box = $(".chat-messages");
     if (box) appendMessage(box, msg);
   });
-  socket.on("connect_error", () => {
-    flash("Chat-Verbindung unterbrochen", "error");
-  });
+  socket.on("connect_error", () => flash("Chat-Verbindung unterbrochen", "error"));
 }
 
 function navigate(page, push = true) {
   const target = PAGES[page] ? page : "home";
   appState.page = target;
   if (push && location.hash.slice(1) !== target) history.pushState(null, "", `#${target}`);
-  $$(".nav-item").forEach((el) => el.classList.toggle("active", el.dataset.page === target));
+  $$("#iconNav a").forEach((el) => el.classList.toggle("active", el.dataset.page === target));
   const content = $("#content");
   content.innerHTML = "";
-  const renderer = PAGES[target] || renderHome;
-  renderer(content);
+  (PAGES[target] || renderHome)(content);
   document.title = `HUB — ${target[0].toUpperCase()}${target.slice(1)}`;
 }
 
@@ -181,37 +158,53 @@ async function getJSON(url) {
 }
 
 async function postJSON(url, body) {
-  const r = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   if (r.status === 401) { window.location.href = "/login"; return { ok: false }; }
   return r.json().catch(() => ({ ok: false }));
 }
 
 async function patchJSON(url, body) {
-  const r = await fetch(url, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  const r = await fetch(url, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  if (r.status === 401) { window.location.href = "/login"; return { ok: false }; }
+  return r.json().catch(() => ({ ok: false }));
+}
+
+async function deleteReq(url) {
+  const r = await fetch(url, { method: "DELETE" });
   if (r.status === 401) { window.location.href = "/login"; return { ok: false }; }
   return r.json().catch(() => ({ ok: false }));
 }
 
 function flash(text, type = "ok") {
-  // In-page lightweight toast
   const toast = document.createElement("div");
   toast.className = `flash ${type}`;
   toast.textContent = text;
   toast.style.position = "fixed";
-  toast.style.top = "70px";
+  toast.style.top = "80px";
   toast.style.left = "50%";
   toast.style.transform = "translateX(-50%)";
-  toast.style.zIndex = "200";
+  toast.style.zIndex = "250";
   document.body.appendChild(toast);
   setTimeout(() => toast.remove(), 2500);
+}
+
+function appIcon(id, label) {
+  return `<div class="app-icon" data-app="${id}"><img src="/static/images/apps/${id}.png" alt="${label}"><div class="label">${label}</div></div>`;
+}
+
+function bindAppClicks() {
+  $$(".app-icon").forEach((el) => {
+    el.addEventListener("click", () => {
+      const id = el.dataset.app;
+      if (id === "party-arena") window.open("https://performer-lang-governmental-uploaded.trycloudflare.com", "_blank");
+      else if (id === "piano-coach") window.open("https://coach.danny-csepke.de", "_blank");
+      else if (id === "projects") navigate("projects");
+      else if (id === "todo") navigate("tasks");
+      else if (id === "explorer") navigate("explorer");
+      else if (id === "chat") $(".chat-widget")?.classList.add("expanded");
+      else if (id === "settings") navigate("settings");
+    });
+  });
 }
 
 // --- Home ---
@@ -220,43 +213,41 @@ async function renderHome(container) {
     <div class="app-grid">
       ${appIcon("party-arena", "Party Arena")}
       ${appIcon("piano-coach", "Klavier")}
-      ${appIcon("projects", "Projekte", () => navigate("projects"))}
-      ${appIcon("todo", "To-Do", () => navigate("tasks"))}
-      ${appIcon("explorer", "Explorer", () => navigate("explorer"))}
-      ${appIcon("chat", "Hermes", () => { document.querySelector(".chat-widget")?.classList.add("expanded"); })}
-      ${appIcon("settings", "Settings", () => navigate("settings"))}
+      ${appIcon("projects", "Projekte")}
+      ${appIcon("todo", "To-Do")}
+      ${appIcon("explorer", "Explorer")}
+      ${appIcon("chat", "Hermes")}
+      ${appIcon("settings", "Settings")}
     </div>
     <h2 class="page-title">Übersicht</h2>
     <div class="grid grid-2">
       <div class="card" id="weather-card"><div class="loader"></div></div>
       <div class="card chat-widget">
-        <h3>💬 Hermes Chat</h3>
+        <div class="chat-header"><div class="chat-title">💬 Hermes Chat</div><button class="chat-close">×</button></div>
         <div class="chat-messages" id="chat-box"></div>
-        <form class="chat-input" id="chat-form">
-          <input type="text" id="chat-input" placeholder="Frage Hermes..." autocomplete="off">
-          <button type="submit" class="btn-primary">➤</button>
-        </form>
+        <form class="chat-input" id="chat-form"><input type="text" id="chat-input" placeholder="Frage Hermes..." autocomplete="off"><button type="submit" class="btn-primary">➤</button></form>
       </div>
-      <div class="card" id="calendar-card">
-        <h3>🗓️ Termine heute</h3>
-        <div id="today-events" class="loader"></div>
-        <button class="btn-secondary" id="add-event-btn" style="margin-top:12px;width:100%">+ Termin</button>
-      </div>
+      <div class="card" id="calendar-card"><h3>🗓️ Termine heute</h3><div id="today-events" class="loader"></div><button class="btn-secondary" id="add-event-btn" style="margin-top:12px;width:100%">+ Termin</button></div>
       <div class="card" id="tasks-card"><h3>✅ Heutige To-Do</h3><div class="loader"></div></div>
-      <div class="card" id="day-card">
-        <h3>📅 Tagesbericht</h3>
-        <div id="daily-report" class="loader"></div>
-      </div>
-      <div class="card" id="news-card">
-        <h3>📰 News</h3>
-        <div id="news-list" class="loader"></div>
-      </div>
-    </div>
-  `;
-
+      <div class="card" id="day-card"><h3>📅 Tagesbericht</h3><div id="daily-report" class="loader"></div></div>
+      <div class="card" id="news-card"><h3>📰 News</h3><div id="news-list" class="loader"></div></div>
+    </div>`;
   bindAppClicks();
+  initChat();
+  loadWeather();
+  loadTodayTasks();
+  loadTodayEvents();
+  loadNews();
   loadDailyReport();
+}
 
+function initChat() {
+  const widget = $(".chat-widget");
+  if (!widget) return;
+  widget.querySelector(".chat-close").addEventListener("click", () => {
+    widget.classList.toggle("expanded");
+    if (widget.classList.contains("expanded")) $("#chat-input")?.focus();
+  });
   $("#chat-form").addEventListener("submit", (e) => {
     e.preventDefault();
     const input = $("#chat-input");
@@ -264,126 +255,16 @@ async function renderHome(container) {
     if (!text || !socket) return;
     socket.emit("chat_message", { text });
     input.value = "";
+    widget.classList.add("expanded");
     const box = $("#chat-box");
     const typing = document.createElement("div");
-    typing.className = "typing";
-    typing.innerHTML = "Hermes denkt<span></span><span></span><span></span>";
-    typing.id = "typing-indicator";
-    box.appendChild(typing);
-    box.scrollTop = box.scrollHeight;
+    typing.className = "typing"; typing.id = "typing-indicator"; typing.innerHTML = "Hermes denkt<span></span><span></span><span></span>";
+    box.appendChild(typing); box.scrollTop = box.scrollHeight;
   });
-
   const box = $("#chat-box");
-  chatHistory.slice(-20).forEach((m) => appendMessage(box, m));
-
-  loadWeather();
-  loadTodayTasks();
-  loadTodayEvents();
-  loadNews();
-  initChatExpand();
-}
-
-function appIcon(id, label, action = null) {
-  return `
-    <div class="app-icon" data-app="${id}">
-      <img src="/static/images/apps/${id}.png" alt="${label}">
-      <div class="label">${label}</div>
-    </div>`;
-}
-
-function bindAppClicks() {
-  $$(".app-icon").forEach((el) => {
-    el.addEventListener("click", () => {
-      const id = el.dataset.app;
-      if (id === "party-arena") window.open("https://github.com/dcsepke-byte/DC-Minigame", "_blank");
-      else if (id === "piano-coach") window.open("https://coach.danny-csepke.de", "_blank");
-      else if (id === "projects") navigate("projects");
-      else if (id === "todo") navigate("tasks");
-      else if (id === "explorer") navigate("explorer");
-      else if (id === "chat") document.querySelector(".chat-widget")?.classList.add("expanded");
-      else if (id === "settings") navigate("settings");
-    });
-  });
-}
-
-async function loadTodayEvents() {
-  const el = $("#today-events");
-  if (!el) return;
-  try {
-    const data = await getJSON("/api/calendar");
-    el.classList.remove("loader");
-    const events = data.today || [];
-    el.innerHTML = events.length
-      ? events.map((e) => `
-        <div class="event-row">
-          <div class="event-title">${e.title}</div>
-          <div class="event-date">${new Date(e.start).toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'})}</div>
-        </div>`).join("")
-      : "<p class='empty-state'>Keine Termine heute.</p>";
-  } catch (e) {
-    if (el) { el.classList.remove("loader"); el.innerHTML = "<p class='empty-state'>Fehler.</p>"; }
-  }
-  const btn = $("#add-event-btn");
-  if (btn) btn.addEventListener("click", () => {
-    const title = prompt("Titel:");
-    if (!title) return;
-    const time = prompt("Uhrzeit (HH:MM, z.B. 14:30):");
-    if (!time) return;
-    const today = new Date().toISOString().slice(0, 10);
-    postJSON("/api/calendar", { title, start: `${today}T${time}:00` }).then((r) => {
-      if (r.ok) { flash("Termin hinzugefügt"); loadTodayEvents(); }
-      else flash("Fehler", "error");
-    });
-  });
-}
-
-async function loadNews() {
-  const el = $("#news-list");
-  if (!el) return;
-  try {
-    const data = await getJSON("/api/news");
-    el.classList.remove("loader");
-    if (!data.ok || !data.items.length) {
-      el.innerHTML = "<p class='empty-state'>News momentan nicht verfügbar.</p>";
-      return;
-    }
-    el.innerHTML = data.items.map((n) => `
-      <a href="${n.url}" target="_blank" class="news-item">
-        <div class="news-title">${n.title}</div>
-        <div class="news-desc">${n.description}</div>
-        <div class="news-date">${n.published ? new Date(n.published).toLocaleString('de-DE', {weekday:'short', hour:'2-digit', minute:'2-digit'}) : ''}</div>
-      </a>`).join("");
-  } catch (e) {
-    if (el) { el.classList.remove("loader"); el.innerHTML = "<p class='empty-state'>Fehler beim Laden.</p>"; }
-  }
-}
-
-async function loadDailyReport() {
-  const el = $("#daily-report");
-  if (!el) return;
-  try {
-    const today = new Date();
-    const dates = [];
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      dates.push(d.toLocaleDateString("de-DE", { weekday: "long", day: "2-digit", month: "2-digit" }));
-    }
-    const data = await getJSON("/api/daily-report");
-    el.classList.remove("loader");
-    const text = data.text || "Kein Tagesbericht verfügbar.";
-    const days = dates.map((date, i) => ({
-      date,
-      text: i === 6 ? text : "Vergangene Tage werden noch aus der Notion-Historie aggregiert.",
-    }));
-    el.innerHTML = days.map((d) => `
-      <div class="report-day">
-        <div class="date">${d.date}</div>
-        <div style="white-space:pre-wrap">${d.text}</div>
-      </div>`).join("");
-  } catch (e) {
-    if (el) { el.classList.remove("loader"); el.innerHTML = "<p class='empty-state'>Fehler beim Laden.</p>"; }
-  }
+  chatHistory.slice(-30).forEach((m) => appendMessage(box, m));
+  $("#chat-input").addEventListener("focus", () => widget.classList.add("expanded"));
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") widget.classList.remove("expanded"); });
 }
 
 function appendMessage(box, msg) {
@@ -399,28 +280,47 @@ async function loadWeather() {
     const data = await getJSON("/api/weather");
     const el = $("#weather-card");
     if (!data.ok) { el.innerHTML = "<h3>🌤️ Wetter</h3><p class='empty-state'>Wetterdaten nicht verfügbar.</p>"; return; }
-    const c = data.current;
-    const days = data.daily.slice(0, 4);
-    const icon = weatherIcon(c.code, c.is_day);
-    el.innerHTML = `
-      <h3>🌤️ Wetter — Braunschweig</h3>
-      <div class="weather-main">
-        <div class="icon">${icon}</div>
-        <div>
-          <div class="temp">${c.temp}°C</div>
-          <div class="weather-meta">Luftfeuchtigkeit ${c.humidity}% · Wind ${c.wind} km/h</div>
-        </div>
-      </div>
-      <div class="forecast">${days.map((d) => `
-        <div class="forecast-day">
-          <span class="icon">${weatherIcon(d.code, 1)}</span>
-          <div class="temps">${d.min}° / ${d.max}°</div>
-          <div class="temps">${d.date.slice(5)}</div>
-        </div>`).join("")}</div>
-    `;
-  } catch (e) {
-    if ($("#weather-card")) $("#weather-card").innerHTML = "<h3>🌤️ Wetter</h3><p class='empty-state'>Fehler.</p>";
-  }
+    const c = data.current, days = data.daily.slice(0, 4);
+    el.innerHTML = `<h3>🌤️ Wetter — Braunschweig</h3><div class="weather-main"><div class="icon">${weatherIcon(c.code, c.is_day)}</div><div><div class="temp">${c.temp}°C</div><div class="weather-meta">Luftfeuchtigkeit ${c.humidity}% · Wind ${c.wind} km/h</div></div></div><div class="forecast">${days.map((d) => `<div class="forecast-day"><span class="icon">${weatherIcon(d.code, 1)}</span><div class="temps">${d.min}° / ${d.max}°</div><div class="temps">${d.date.slice(5)}</div></div>`).join("")}</div>`;
+  } catch (e) { if ($("#weather-card")) $("#weather-card").innerHTML = "<h3>🌤️ Wetter</h3><p class='empty-state'>Fehler.</p>"; }
+}
+
+async function loadTodayEvents() {
+  const el = $("#today-events");
+  if (!el) return;
+  try {
+    const data = await getJSON("/api/calendar");
+    el.classList.remove("loader");
+    const events = data.today || [];
+    el.innerHTML = events.length ? events.map((e) => `<div class="event-row"><div class="event-title">${e.title}</div><div class="event-date">${new Date(e.start).toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'})}</div></div>`).join("") : "<p class='empty-state'>Keine Termine heute.</p>";
+  } catch (e) { el.classList.remove("loader"); el.innerHTML = "<p class='empty-state'>Fehler.</p>"; }
+  $("#add-event-btn")?.addEventListener("click", () => {
+    const title = prompt("Titel:"); if (!title) return;
+    const time = prompt("Uhrzeit (HH:MM):"); if (!time) return;
+    const today = new Date().toISOString().slice(0, 10);
+    postJSON("/api/calendar", { title, start: `${today}T${time}:00` }).then((r) => { if (r.ok) { flash("Termin hinzugefügt"); loadTodayEvents(); } else flash("Fehler", "error"); });
+  });
+}
+
+async function loadNews() {
+  const el = $("#news-list");
+  if (!el) return;
+  try {
+    const data = await getJSON("/api/news");
+    el.classList.remove("loader");
+    if (!data.ok || !data.items.length) { el.innerHTML = "<p class='empty-state'>News momentan nicht verfügbar.</p>"; return; }
+    el.innerHTML = data.items.map((n) => `<a href="${n.url}" target="_blank" class="news-item"><div class="news-title">${n.title}</div><div class="news-desc">${n.description}</div><div class="news-date">${n.published ? new Date(n.published).toLocaleString('de-DE', {weekday:'short', hour:'2-digit', minute:'2-digit'}) : ''}</div></a>`).join("");
+  } catch (e) { el.classList.remove("loader"); el.innerHTML = "<p class='empty-state'>Fehler beim Laden.</p>"; }
+}
+
+async function loadDailyReport() {
+  const el = $("#daily-report");
+  if (!el) return;
+  try {
+    const data = await getJSON("/api/daily-report");
+    el.classList.remove("loader");
+    el.innerHTML = `<div class="report-day"><div class="date">Heute</div><div style="white-space:pre-wrap">${data.text || "Kein Tagesbericht verfügbar."}</div></div>`;
+  } catch (e) { el.classList.remove("loader"); el.innerHTML = "<p class='empty-state'>Fehler beim Laden.</p>"; }
 }
 
 async function loadTodayTasks() {
@@ -428,196 +328,183 @@ async function loadTodayTasks() {
     const tasks = await getJSON("/api/tasks?status=Offen");
     const el = $("#tasks-card");
     const today = tasks.slice(0, 6);
-    el.innerHTML = `
-      <h3>✅ Heutige To-Do</h3>
-      <div class="task-list">${today.length ? today.map(taskRow).join("") : "<p class='empty-state'>Keine offenen Tasks. 🎉</p>"}</div>
-    `;
+    el.innerHTML = `<h3>✅ Heutige To-Do</h3><div class="task-list">${today.length ? today.map(taskRow).join("") : "<p class='empty-state'>Keine offenen Tasks. 🎉</p>"}</div>`;
     bindTaskCheckboxes(el, () => { loadTodayTasks(); if (appState.page === "tasks") renderTasks(); });
-  } catch (e) {
-    $("#tasks-card").innerHTML = "<h3>✅ Heutige To-Do</h3><p class='empty-state'>Fehler beim Laden.</p>";
-  }
+  } catch (e) { $("#tasks-card").innerHTML = "<h3>✅ Heutige To-Do</h3><p class='empty-state'>Fehler beim Laden.</p>"; }
 }
 
 function weatherIcon(code, isDay) {
-  const map = {
-    0: isDay ? "☀️" : "🌙", 1: isDay ? "🌤️" : "☁️", 2: isDay ? "⛅" : "☁️", 3: "☁️",
-    45: "🌫️", 48: "🌫️", 51: "🌦️", 53: "🌧️", 55: "🌧️",
-    61: "🌧️", 63: "🌧️", 65: "🌧️", 71: "🌨️", 73: "🌨️", 75: "🌨️", 77: "🌨️",
-    80: "🌦️", 81: "🌧️", 82: "🌧️", 85: "🌨️", 86: "🌨️", 95: "⛈️", 96: "⛈️", 99: "⛈️",
-  };
+  const map = { 0: isDay ? "☀️" : "🌙", 1: isDay ? "🌤️" : "☁️", 2: isDay ? "⛅" : "☁️", 3: "☁️", 45: "🌫️", 48: "🌫️", 51: "🌦️", 53: "🌧️", 55: "🌧️", 61: "🌧️", 63: "🌧️", 65: "🌧️", 71: "🌨️", 73: "🌨️", 75: "🌨️", 77: "🌨️", 80: "🌦️", 81: "🌧️", 82: "🌧️", 85: "🌨️", 86: "🌨️", 95: "⛈️", 96: "⛈️", 99: "⛈️" };
   return map[code] || "❓";
 }
 
 // --- Projects ---
 async function renderProjects(container) {
   container.innerHTML = `
-    <div class="app-grid">
-      ${appIcon("party-arena", "Party Arena")}
-      ${appIcon("piano-coach", "Klavier")}
-    </div>
     <h2 class="page-title">Projekte</h2>
+    <div class="card" style="margin-bottom:20px">
+      <h3>➕ Neues Projekt</h3>
+      <form id="project-form" class="project-form">
+        <input type="text" id="p-name" placeholder="Name" required>
+        <div class="row"><input type="text" id="p-icon" placeholder="Icon Emoji" value="📁"><input type="color" id="p-color" value="#6366f1"></div>
+        <select id="p-status"><option>In Arbeit</option><option>Geplant</option><option>Aktiv</option><option>Vorbereitung</option><option>Beendet</option></select>
+        <input type="text" id="p-desc" placeholder="Beschreibung">
+        <div class="row"><input type="url" id="p-live" placeholder="Live URL"><input type="url" id="p-repo" placeholder="Repo URL"></div>
+        <button type="submit" class="btn-primary">Projekt anlegen</button>
+      </form>
+    </div>
     <div class="grid grid-2" id="project-grid"><div class="loader"></div></div>`;
+  $("#project-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const res = await postJSON("/api/projects", {
+      name: $("#p-name").value.trim(), icon: $("#p-icon").value, color: $("#p-color").value,
+      status: $("#p-status").value, description: $("#p-desc").value,
+      live_url: $("#p-live").value, repo_url: $("#p-repo").value,
+    });
+    if (res.ok) { flash("Projekt angelegt"); renderProjects(container); } else flash(res.error || "Fehler", "error");
+  });
   try {
     const projects = await getJSON("/api/projects");
     const grid = $("#project-grid");
     grid.innerHTML = projects.map((p) => `
-      <div class="project-card" data-project="${p.name}" style="border-top:4px solid ${p.color}">
-        <div class="header">
-          <div class="icon" style="background:${p.color}20">${p.icon}</div>
-          <div><h4>${p.name}</h4><div class="status">${p.status}</div></div>
-        </div>
+      <div class="project-card" data-id="${p.id}">
+        <div class="header"><div class="icon" style="background:${p.color}22">${p.icon}</div><div><h4>${p.name}</h4><div class="status">${p.status}</div></div></div>
         <div class="tasks">${p.tasks} offene Task${p.tasks === 1 ? "" : "s"}</div>
+        <div class="project-actions"><button class="open-btn">Öffnen</button><button class="edit-btn">Bearbeiten</button><button class="danger del-btn">Löschen</button></div>
       </div>`).join("");
-    bindAppClicks();
     $$(".project-card").forEach((card) => {
-      card.addEventListener("click", () => { appState.projectDetail = card.dataset.project; navigate("project"); });
+      const id = card.dataset.id;
+      card.querySelector(".open-btn").addEventListener("click", () => { appState.projectDetail = id; navigate("project"); });
+      card.querySelector(".edit-btn").addEventListener("click", () => editProject(id));
+      card.querySelector(".del-btn").addEventListener("click", async () => { if (confirm("Projekt wirklich löschen?")) { await deleteReq(`/api/projects/${id}`); flash("Gelöscht"); renderProjects(container); } });
     });
-  } catch (e) {
-    $("#project-grid").innerHTML = "<p class='empty-state'>Projekte konnten nicht geladen werden.</p>";
-  }
+  } catch (e) { $("#project-grid").innerHTML = "<p class='empty-state'>Projekte konnten nicht geladen werden.</p>"; }
+}
+
+async function editProject(id) {
+  const p = await getJSON(`/api/projects/${id}`);
+  const form = document.createElement("div");
+  form.className = "modal show";
+  form.innerHTML = `<div class="modal-card"><div class="modal-header"><h3>Projekt bearbeiten</h3><button class="close-modal">×</button></div><div class="modal-body">
+    <form id="edit-p-form" class="project-form"><input type="text" id="ep-name" value="${p.name}" required>
+    <div class="row"><input type="text" id="ep-icon" value="${p.icon}"><input type="color" id="ep-color" value="${p.color}"></div>
+    <select id="ep-status"><option ${p.status==='In Arbeit'?'selected':''}>In Arbeit</option><option ${p.status==='Geplant'?'selected':''}>Geplant</option><option ${p.status==='Aktiv'?'selected':''}>Aktiv</option><option ${p.status==='Vorbereitung'?'selected':''}>Vorbereitung</option><option ${p.status==='Beendet'?'selected':''}>Beendet</option></select>
+    <input type="text" id="ep-desc" value="${p.description || ''}">
+    <div class="row"><input type="url" id="ep-live" value="${p.live_url || ''}" placeholder="Live URL"><input type="url" id="ep-repo" value="${p.repo_url || ''}" placeholder="Repo URL"></div>
+    <button type="submit" class="btn-primary">Speichern</button></form></div></div>`;
+  document.body.appendChild(form);
+  form.querySelector(".close-modal").addEventListener("click", () => form.remove());
+  form.addEventListener("click", (e) => { if (e.target === form) form.remove(); });
+  $("#edit-p-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const res = await patchJSON(`/api/projects/${id}`, {
+      name: $("#ep-name").value.trim(), icon: $("#ep-icon").value, color: $("#ep-color").value,
+      status: $("#ep-status").value, description: $("#ep-desc").value,
+      live_url: $("#ep-live").value, repo_url: $("#ep-repo").value,
+    });
+    if (res.ok) { flash("Gespeichert"); form.remove(); renderProjects($("#content")); } else flash(res.error || "Fehler", "error");
+  });
 }
 
 async function renderProjectDetail(container) {
   const id = appState.projectDetail;
   if (!id) { navigate("projects"); return; }
-  container.innerHTML = `
-    <h2 class="page-title" id="pd-title"></h2>
-    <div class="grid grid-2">
-      <div class="card">
-        <h3>📋 Offene Tasks</h3>
-        <div id="pd-tasks" class="loader"></div>
-      </div>
-      <div class="card">
-        <h3>📅 Kommende Termine</h3>
-        <div id="pd-events" class="loader"></div>
-      </div>
-      <div class="card" style="grid-column:1/-1">
-        <h3>🔗 Links</h3>
-        <div id="pd-links" class="loader"></div>
-      </div>
-    </div>
-  `;
+  container.innerHTML = `<h2 class="page-title" id="pd-title"></h2><div class="grid grid-2"><div class="card"><h3>📋 Offene Tasks</h3><div id="pd-tasks" class="loader"></div></div><div class="card"><h3>📅 Kommende Termine</h3><div id="pd-events" class="loader"></div></div><div class="card" style="grid-column:1/-1"><h3>🔗 Links</h3><div id="pd-links" class="loader"></div></div></div>`;
   try {
-    const p = await getJSON(`/api/projects/${encodeURIComponent(id)}`);
+    const p = await getJSON(`/api/projects/${id}`);
     $("#pd-title").textContent = `${p.icon} ${p.name}`;
     $("#pd-title").style.color = p.color;
-    const tasksEl = $("#pd-tasks");
-    tasksEl.classList.remove("loader");
+    const tasksEl = $("#pd-tasks"); tasksEl.classList.remove("loader");
     tasksEl.innerHTML = p.tasks?.length ? p.tasks.map(taskRow).join("") : "<p class='empty-state'>Keine offenen Tasks.</p>";
     bindTaskCheckboxes(tasksEl, () => renderProjectDetail(container));
-    const eventsEl = $("#pd-events");
-    eventsEl.classList.remove("loader");
-    eventsEl.innerHTML = p.events?.length
-      ? p.events.map((e) => `
-        <div class="event-row">
-          <div class="event-title">${e.title}</div>
-          <div class="event-date">${new Date(e.start).toLocaleString('de-DE', {dateStyle:'short', timeStyle:'short'})}</div>
-        </div>`).join("")
-      : "<p class='empty-state'>Keine Termine.</p>";
-    const linksEl = $("#pd-links");
-    linksEl.classList.remove("loader");
-    linksEl.innerHTML = p.links?.length
-      ? p.links.map((l) => `<a href="${l.url}" target="_blank" class="project-link" style="border-color:${p.color}">${l.name}</a>`).join("")
-      : "<p class='empty-state'>Keine Links.</p>";
-  } catch (e) {
-    container.innerHTML = "<p class='empty-state'>Projekt konnte nicht geladen werden.</p>";
-  }
+    const eventsEl = $("#pd-events"); eventsEl.classList.remove("loader");
+    eventsEl.innerHTML = p.events?.length ? p.events.map((e) => `<div class="event-row"><div class="event-title">${e.title}</div><div class="event-date">${new Date(e.start).toLocaleString('de-DE', {dateStyle:'short', timeStyle:'short'})}</div></div>`).join("") : "<p class='empty-state'>Keine Termine.</p>";
+    const linksEl = $("#pd-links"); linksEl.classList.remove("loader");
+    linksEl.innerHTML = p.links?.length ? p.links.map((l) => `<a href="${l.url}" target="_blank" class="project-link" style="border-color:${p.color}">${l.name}</a>`).join("") : "<p class='empty-state'>Keine Links.</p>";
+  } catch (e) { container.innerHTML = "<p class='empty-state'>Projekt konnte nicht geladen werden.</p>"; }
 }
 
 // --- Tasks ---
 async function renderTasks(container) {
   container.innerHTML = `
     <h2 class="page-title">To-Do</h2>
-    <div class="task-tabs">
-      <button data-tab="tasks" class="active">Aufgaben</button>
-      <button data-tab="lists">Listen</button>
-    </div>
+    <div class="task-tabs"><button data-tab="tasks" class="active">Aufgaben</button><button data-tab="lists">Listen</button><button data-tab="dashboard">Dashboard</button></div>
     <div id="task-panel">
-      <div class="task-filter">
-        <button data-filter="all" class="active">Alle</button>
-        <button data-filter="Offen">Offen</button>
-        <button data-filter="Erledigt">Erledigt</button>
-        <button data-filter="Party Arena">Party Arena</button>
-        <button data-filter="KI-Videos">KI-Videos</button>
-        <button data-filter="Hochzeit">Hochzeit</button>
-        <button data-filter="Server">Server</button>
-      </div>
+      <div class="task-filter"><button data-filter="all" class="active">Alle</button><button data-filter="Offen">Offen</button><button data-filter="Erledigt">Erledigt</button><button data-filter="Party Arena">Party Arena</button><button data-filter="KI-Videos">KI-Videos</button><button data-filter="Hochzeit">Hochzeit</button><button data-filter="Server">Server</button></div>
       <div class="task-list" id="task-list"><div class="loader"></div></div>
     </div>
-    <div id="lists-panel" style="display:none">
-      <div class="list-tabs" id="list-tabs"></div>
-      <div class="task-list" id="lists-list"><div class="loader"></div></div>
-      <form id="list-add-form" class="list-add-form">
-        <input type="text" id="list-new-item" placeholder="Neuer Eintrag...">
-        <button type="submit" class="btn-primary">+</button>
-      </form>
-    </div>`;
+    <div id="lists-panel" style="display:none"><div class="list-tabs" id="list-tabs"></div><div class="task-list" id="lists-list"><div class="loader"></div></div><form id="list-add-form" class="list-add-form"><input type="text" id="list-new-item" placeholder="Neuer Eintrag..."><button type="submit" class="btn-primary">+</button></form></div>
+    <div id="dashboard-panel" style="display:none"><div class="grid grid-3" id="dash-grid"></div></div>`;
 
   $$(".task-tabs button").forEach((btn) => {
     btn.addEventListener("click", () => {
-      $$(".task-tabs button").forEach((b) => b.classList.remove("active"));
-      btn.classList.add("active");
-      const isTasks = btn.dataset.tab === "tasks";
-      $("#task-panel").style.display = isTasks ? "block" : "none";
-      $("#lists-panel").style.display = isTasks ? "none" : "block";
-      if (!isTasks) loadLists();
+      $$(".task-tabs button").forEach((b) => b.classList.remove("active")); btn.classList.add("active");
+      const tab = btn.dataset.tab;
+      $("#task-panel").style.display = tab === "tasks" ? "block" : "none";
+      $("#lists-panel").style.display = tab === "lists" ? "block" : "none";
+      $("#dashboard-panel").style.display = tab === "dashboard" ? "block" : "none";
+      if (tab === "lists") loadLists();
+      if (tab === "dashboard") loadDashboard();
     });
   });
-
   $$(".task-filter button").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      $$(".task-filter button").forEach((b) => b.classList.remove("active"));
-      btn.classList.add("active");
-      appState.taskFilter = btn.dataset.filter;
-      loadTasks();
-    });
+    btn.addEventListener("click", () => { $$(".task-filter button").forEach((b) => b.classList.remove("active")); btn.classList.add("active"); appState.taskFilter = btn.dataset.filter; loadTasks(); });
   });
-
-  if (appState.projectFilter) {
-    appState.taskFilter = appState.projectFilter;
-    appState.projectFilter = null;
-    $$(`.task-filter button[data-filter="${appState.taskFilter}"]`)?.[0]?.classList.add("active");
-    $$(".task-filter button[data-filter='all']")?.[0]?.classList.remove("active");
-  }
-
   $("#list-add-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const input = $("#list-new-item");
     if (!input.value.trim() || !appState.activeList) return;
     const res = await postJSON(`/api/lists/${encodeURIComponent(appState.activeList)}/items`, { text: input.value.trim() });
-    if (res.ok) { input.value = ""; loadLists(); }
-    else flash("Fehler", "error");
+    if (res.ok) { input.value = ""; loadLists(); } else flash("Fehler", "error");
   });
-
   await loadTasks();
-  appState.activeList = "Einkauf";
-  loadLists();
+  appState.activeList = "Einkauf"; loadLists();
+}
+
+function dueClass(due) {
+  if (!due) return "";
+  const d = new Date(due); d.setHours(0,0,0,0);
+  const today = new Date(); today.setHours(0,0,0,0);
+  const diff = Math.round((d - today) / 86400000);
+  if (diff < 0) return "due-overdue";
+  if (diff === 0) return "due-today";
+  return "due-future";
 }
 
 async function loadTasks() {
-  const list = $("#task-list");
-  list.innerHTML = "<div class='loader'></div>";
+  const list = $("#task-list"); list.innerHTML = "<div class='loader'></div>";
   try {
     let url = "/api/tasks";
     const knownStatus = ["Offen", "Erledigt", "In Arbeit", "Blockiert"];
-    if (knownStatus.includes(appState.taskFilter) && appState.taskFilter !== "all") {
-      url += `?status=${encodeURIComponent(appState.taskFilter)}`;
-    } else if (appState.taskFilter && appState.taskFilter !== "all") {
-      url += `?project=${encodeURIComponent(appState.taskFilter)}`;
-    }
+    if (knownStatus.includes(appState.taskFilter) && appState.taskFilter !== "all") url += `?status=${encodeURIComponent(appState.taskFilter)}`;
+    else if (appState.taskFilter && appState.taskFilter !== "all") url += `?project=${encodeURIComponent(appState.taskFilter)}`;
     const tasks = await getJSON(url);
     list.innerHTML = tasks.length ? tasks.map(taskRow).join("") : "<p class='empty-state'>Keine Tasks.</p>";
     bindTaskCheckboxes(list, loadTasks);
     initSwipe(list, loadTasks);
-    list.innerHTML += `<div class="swipe-hint">↔ Swipe: rechts erledigt · links blockiert</div>`;
-  } catch (e) {
-    list.innerHTML = "<p class='empty-state'>Fehler beim Laden.</p>";
-  }
+  } catch (e) { list.innerHTML = "<p class='empty-state'>Fehler beim Laden.</p>"; }
+}
+
+async function loadDashboard() {
+  const grid = $("#dash-grid");
+  if (!grid) return;
+  grid.innerHTML = "<div class='loader'></div>";
+  try {
+    const tasks = await getJSON("/api/tasks?status=Offen");
+    const total = tasks.length;
+    const overdue = tasks.filter((t) => dueClass(t.due) === "due-overdue").length;
+    const today = tasks.filter((t) => dueClass(t.due) === "due-today").length;
+    grid.innerHTML = `
+      <div class="card"><h3>Offen</h3><div style="font-size:38px;font-weight:700">${total}</div></div>
+      <div class="card" style="border-left:4px solid var(--danger)"><h3>Überfällig</h3><div style="font-size:38px;font-weight:700;color:var(--danger)">${overdue}</div></div>
+      <div class="card" style="border-left:4px solid var(--warning)"><h3>Heute fällig</h3><div style="font-size:38px;font-weight:700;color:var(--warning)">${today}</div></div>
+      <div class="card" style="grid-column:1/-1"><h3>Offene Tasks fällig in 14 Tagen</h3><div class="task-list">${tasks.filter((t) => t.due).slice(0,8).map(taskRow).join("") || "<p class='empty-state'>Keine Termine gesetzt.</p>"}</div></div>`;
+    bindTaskCheckboxes(grid, loadDashboard);
+  } catch (e) { grid.innerHTML = "<p class='empty-state'>Fehler.</p>"; }
 }
 
 async function loadLists() {
-  const tabs = $("#list-tabs");
-  const list = $("#lists-list");
+  const tabs = $("#list-tabs"), list = $("#lists-list");
   if (!tabs || !list) return;
   list.innerHTML = "<div class='loader'></div>";
   try {
@@ -627,24 +514,10 @@ async function loadLists() {
     tabs.innerHTML = names.map((n) => `<button class="list-tab ${n === appState.activeList ? 'active' : ''}" data-list="${n}">${n}</button>`).join("");
     $$("#list-tabs button").forEach((btn) => btn.addEventListener("click", () => { appState.activeList = btn.dataset.list; loadLists(); }));
     const items = data[appState.activeList] || [];
-    list.innerHTML = items.length
-      ? items.map((it) => `
-        <div class="task-item ${it.done ? 'done' : ''}" data-list="${appState.activeList}" data-id="${it.id}">
-          <input type="checkbox" ${it.done ? 'checked' : ''} data-list="${appState.activeList}" data-id="${it.id}">
-          <div class="task-title" style="${it.done ? 'text-decoration:line-through;color:var(--muted)' : ''}">${it.text}</div>
-        </div>`).join("")
-      : "<p class='empty-state'>Liste leer.</p>";
-    list.querySelectorAll("input[type=checkbox]").forEach((box) => {
-      box.addEventListener("change", async () => {
-        await patchJSON(`/api/lists/${encodeURIComponent(box.dataset.list)}/items/${box.dataset.id}/toggle`, {});
-        loadLists();
-      });
-    });
+    list.innerHTML = items.length ? items.map((it) => `<div class="task-item ${it.done ? 'done' : ''}" data-list="${appState.activeList}" data-id="${it.id}"><input type="checkbox" ${it.done ? 'checked' : ''} data-list="${appState.activeList}" data-id="${it.id}"><div class="task-title" style="${it.done ? 'text-decoration:line-through;color:var(--text-tertiary)' : ''}">${it.text}</div></div>`).join("") : "<p class='empty-state'>Liste leer.</p>";
+    list.querySelectorAll("input[type=checkbox]").forEach((box) => box.addEventListener("change", async () => { await patchJSON(`/api/lists/${encodeURIComponent(box.dataset.list)}/items/${box.dataset.id}/toggle`, {}); loadLists(); }));
     initSwipe(list, loadLists, true);
-    list.innerHTML += `<div class="swipe-hint">↔ Swipe: rechts erledigt · links löschen</div>`;
-  } catch (e) {
-    list.innerHTML = "<p class='empty-state'>Fehler.</p>";
-  }
+  } catch (e) { list.innerHTML = "<p class='empty-state'>Fehler.</p>"; }
 }
 
 function initSwipe(root, reloadFn, isList = false) {
@@ -652,20 +525,15 @@ function initSwipe(root, reloadFn, isList = false) {
     let startX = 0;
     el.addEventListener("touchstart", (e) => { startX = e.touches[0].clientX; }, { passive: true });
     el.addEventListener("touchend", async (e) => {
-      const endX = e.changedTouches[0].clientX;
-      const diff = endX - startX;
+      const diff = e.changedTouches[0].clientX - startX;
       if (Math.abs(diff) < 80) return;
       const id = el.dataset.id;
       if (!isList) {
         if (diff > 0) await patchJSON(`/api/tasks/${id}/status`, { status: "Erledigt" });
-        else await patchJSON(`/api/tasks/${id}/status`, { status: "Blockiert" }); // links = blockiert statt löschen
+        else await patchJSON(`/api/tasks/${id}/status`, { status: "Blockiert" });
       } else {
         if (diff > 0) await patchJSON(`/api/lists/${encodeURIComponent(el.dataset.list)}/items/${id}/toggle`, {});
-        else {
-          const method = "DELETE";
-          const r = await fetch(`/api/lists/${encodeURIComponent(el.dataset.list)}/items/${id}`, { method });
-          if (!r.ok) return;
-        }
+        else { await fetch(`/api/lists/${encodeURIComponent(el.dataset.list)}/items/${id}`, { method: "DELETE" }); }
       }
       reloadFn();
     }, { passive: true });
@@ -674,109 +542,123 @@ function initSwipe(root, reloadFn, isList = false) {
 
 function taskRow(t) {
   const done = t.status === "Erledigt";
-  return `
-    <div class="task-item ${done ? "done" : ""}" data-id="${t.id}">
-      <input type="checkbox" ${done ? "checked" : ""} data-id="${t.id}">
-      <div class="task-title" title="${t.title}">${t.title}</div>
-      <div class="task-meta" title="${t.project}">${t.project || "—"}</div>
-    </div>`;
+  const dc = dueClass(t.due);
+  let dueLabel = "";
+  if (t.due) {
+    const d = new Date(t.due); d.setHours(0,0,0,0); const today = new Date(); today.setHours(0,0,0,0);
+    const diff = Math.round((d - today) / 86400000);
+    dueLabel = diff === 0 ? "Heute" : diff === 1 ? "Morgen" : diff < 0 ? `${Math.abs(diff)}d überfällig` : `in ${diff}d`;
+  }
+  return `<div class="task-item ${done ? "done" : ""} ${dc}" data-id="${t.id}"><input type="checkbox" ${done ? "checked" : ""} data-id="${t.id}"><div class="task-title" title="${t.title}">${t.title}</div><div class="task-due">${dueLabel}</div><div class="task-meta">${t.project || "—"}</div></div>`;
 }
 
 function bindTaskCheckboxes(root, cb) {
   root.querySelectorAll("input[type=checkbox]").forEach((box) => {
-    box.addEventListener("change", async () => {
-      const status = box.checked ? "Erledigt" : "Offen";
-      await patchJSON(`/api/tasks/${box.dataset.id}/status`, { status });
-      cb && cb();
-    });
+    box.addEventListener("change", async () => { await patchJSON(`/api/tasks/${box.dataset.id}/status`, { status: box.checked ? "Erledigt" : "Offen" }); cb && cb(); });
   });
 }
 
-// --- Explorer ---
+// --- Explorer Windows ---
 async function renderExplorer(container) {
   container.innerHTML = `
     <h2 class="page-title">Explorer</h2>
-    <div class="explorer-toolbar">
-      <div class="group">
-        <button class="btn-secondary" id="up-btn">⬆ Hoch</button>
-        <button class="btn-secondary" id="new-folder-btn">Neuer Ordner</button>
-        <label class="btn-secondary">Upload<input type="file" id="explorer-upload" style="display:none" multiple></label>
+    <div class="explorer-wrap">
+      <div class="explorer-tree glass" id="explorer-tree"><div class="loader"></div></div>
+      <div class="explorer-main">
+        <div class="explorer-toolbar">
+          <button id="up-btn">⬆ Hoch</button>
+          <button id="new-folder-btn">Neuer Ordner</button>
+          <button id="rename-btn">Umbenennen</button>
+          <button id="delete-btn">Löschen</button>
+          <label>Upload<input type="file" id="explorer-upload" style="display:none" multiple></label>
+          <button id="view-grid" class="active">▦ Grid</button>
+          <button id="view-list">☰ Liste</button>
+        </div>
+        <div class="explorer-breadcrumb" id="breadcrumb"></div>
+        <div class="explorer-content" id="explorer-content" data-view="grid"><div class="loader"></div></div>
       </div>
-      <div class="group">
-        <button class="btn-icon active" id="view-grid" title="Grid">▦</button>
-        <button class="btn-icon" id="view-list" title="Liste">☰</button>
-      </div>
-    </div>
-    <div class="explorer-breadcrumb" id="breadcrumb"></div>
-    <div class="explorer-grid" id="explorer-grid" data-view="grid"><div class="loader"></div></div>`;
-
-  $("#up-btn").addEventListener("click", () => { appState.path = appState.path.split("/").slice(0, -1).join("/"); loadExplorer(); });
-  $("#new-folder-btn").addEventListener("click", () => {
-    const name = prompt("Ordnername:");
-    if (name) { appState.path = appState.path ? `${appState.path}/${name}` : name; loadExplorer(); }
-  });
-  $("#explorer-upload").addEventListener("change", async (e) => {
-    for (const file of e.target.files) await uploadFile(file);
-    e.target.value = "";
-  });
-  $("#view-grid").addEventListener("click", () => { appState.explorerView = "grid"; $("#explorer-grid").dataset.view = "grid"; $$(".view-toggle").forEach((b) => b.classList.toggle("active", b.id === "view-grid")); });
-  $("#view-list").addEventListener("click", () => { appState.explorerView = "list"; $("#explorer-grid").dataset.view = "list"; $$(".view-toggle").forEach((b) => b.classList.toggle("active", b.id === "view-list")); });
-
-  const grid = $("#explorer-grid");
-  grid.addEventListener("dragover", (e) => { e.preventDefault(); grid.classList.add("drag-over"); });
-  grid.addEventListener("dragleave", () => grid.classList.remove("drag-over"));
-  grid.addEventListener("drop", async (e) => {
-    e.preventDefault();
-    grid.classList.remove("drag-over");
-    for (const file of e.dataTransfer.files) await uploadFile(file);
-  });
-
-  await loadExplorer();
+    </div>`;
+  $("#up-btn").addEventListener("click", () => { appState.path = appState.path.split("/").slice(0, -1).join("/"); appState.selectedPath = null; loadExplorer(); });
+  $("#new-folder-btn").addEventListener("click", () => { const name = prompt("Ordnername:"); if (name) postJSON("/api/explorer/folder", { path: appState.path || "", name }).then(() => { loadTree(); loadExplorer(); }); });
+  $("#rename-btn").addEventListener("click", () => { if (!appState.selectedPath) return flash("Datei wählen", "error"); const name = prompt("Neuer Name:"); if (name) postJSON("/api/explorer/rename", { path: appState.selectedPath, name }).then(() => { appState.selectedPath = null; loadTree(); loadExplorer(); }); });
+  $("#delete-btn").addEventListener("click", () => { if (!appState.selectedPath) return flash("Datei wählen", "error"); if (confirm("Wirklich löschen?")) postJSON("/api/explorer/delete", { path: appState.selectedPath }).then(() => { appState.selectedPath = null; loadTree(); loadExplorer(); }); });
+  $("#explorer-upload").addEventListener("change", async (e) => { for (const file of e.target.files) await uploadFile(file); e.target.value = ""; loadTree(); });
+  $("#view-grid").addEventListener("click", () => { appState.explorerView = "grid"; $("#explorer-content").dataset.view = "grid"; $$("#view-grid,#view-list").forEach((b) => b.classList.toggle("active", b.id === "view-grid")); });
+  $("#view-list").addEventListener("click", () => { appState.explorerView = "list"; $("#explorer-content").dataset.view = "list"; $$("#view-grid,#view-list").forEach((b) => b.classList.toggle("active", b.id === "view-list")); });
+  loadTree();
+  loadExplorer();
 }
 
-async function uploadFile(file) {
-  const form = new FormData();
-  form.append("file", file);
-  const r = await fetch(`/api/explorer/upload?path=${encodeURIComponent(appState.path || "")}`, { method: "POST", body: form });
-  if (r.ok) { flash("Hochgeladen"); loadExplorer(); }
-  else flash("Upload fehlgeschlagen", "error");
+async function loadTree() {
+  const tree = $("#explorer-tree");
+  try {
+    const data = await getJSON("/api/explorer/tree");
+    tree.innerHTML = `<ul>${data.map(renderTreeNode).join("")}</ul>`;
+    bindTree(tree);
+  } catch (e) { tree.innerHTML = "<p class='empty-state'>Fehler.</p>"; }
+}
+
+function renderTreeNode(node) {
+  const hasChildren = node.children && node.children.length;
+  return `<li><div class="node" data-path="${node.path}"><span class="arrow ${hasChildren ? '' : 'hidden'}">▶</span><span>📁</span><span>${node.name}</span></div>${hasChildren ? `<ul class="children">${node.children.map(renderTreeNode).join("")}</ul>` : ""}</li>`;
+}
+
+function bindTree(root) {
+  root.querySelectorAll(".node").forEach((node) => {
+    node.addEventListener("click", (e) => {
+      e.stopPropagation();
+      root.querySelectorAll(".node").forEach((n) => n.classList.remove("active"));
+      node.classList.add("active");
+      const children = node.parentElement.querySelector(".children");
+      if (children) { children.classList.toggle("open"); node.classList.toggle("open"); }
+      appState.path = node.dataset.path;
+      appState.selectedPath = null;
+      loadExplorer();
+    });
+  });
 }
 
 async function loadExplorer() {
+  const content = $("#explorer-content");
   try {
     const items = await getJSON(`/api/explorer?path=${encodeURIComponent(appState.path || "")}`);
-    renderBreadcrumb();
-    const grid = $("#explorer-grid");
-    grid.dataset.view = appState.explorerView || "grid";
-    grid.innerHTML = items.map((it) => `
-      <div class="explorer-item" data-path="${it.path}" data-type="${it.type}" data-name="${it.name}">
-        <div class="icon">${it.type === "folder" ? "📁" : iconForFile(it.name)}</div>
-        <div class="name">${it.name}</div>
-        <div class="meta">${it.type === "file" ? formatBytes(it.size) : "Ordner"}</div>
-      </div>`).join("");
-
+    content.dataset.view = appState.explorerView || "grid";
+    content.innerHTML = items.map((it) => `<div class="explorer-item ${appState.selectedPath === it.path ? 'selected' : ''}" data-path="${it.path}" data-type="${it.type}" data-name="${it.name}"><div class="icon">${it.type === "folder" ? "📁" : iconForFile(it.name)}</div><div class="name">${it.name}</div>${it.type === "file" ? `<div class="meta">${formatBytes(it.size)}</div>` : ""}</div>`).join("");
     $$(".explorer-item").forEach((el) => {
-      el.addEventListener("click", () => {
-        if (el.dataset.type === "folder") { appState.path = el.dataset.path; loadExplorer(); }
-        else openPreview(el.dataset.path, el.dataset.name);
+      el.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (el.dataset.type === "folder") { appState.path = el.dataset.path; appState.selectedPath = null; loadExplorer(); }
+        else { appState.selectedPath = el.dataset.path; $$(".explorer-item").forEach((i) => i.classList.remove("selected")); el.classList.add("selected"); }
       });
+      el.addEventListener("dblclick", () => { if (el.dataset.type === "file") openPreview(el.dataset.path, el.dataset.name); });
     });
-  } catch (e) {
-    $("#explorer-grid").innerHTML = "<p class='empty-state'>Fehler.</p>";
-  }
+    content.addEventListener("dragover", (e) => { e.preventDefault(); content.classList.add("drag-over"); });
+    content.addEventListener("dragleave", () => content.classList.remove("drag-over"));
+    content.addEventListener("drop", async (e) => { e.preventDefault(); content.classList.remove("drag-over"); for (const file of e.dataTransfer.files) await uploadFile(file); loadTree(); });
+    renderBreadcrumb();
+  } catch (e) { content.innerHTML = "<p class='empty-state'>Fehler.</p>"; }
+}
+
+async function uploadFile(file) {
+  const form = new FormData(); form.append("file", file);
+  const r = await fetch(`/api/explorer/upload?path=${encodeURIComponent(appState.path || "")}`, { method: "POST", body: form });
+  flash(r.ok ? "Hochgeladen" : "Upload fehlgeschlagen", r.ok ? "ok" : "error");
+  if (r.ok) loadExplorer();
+}
+
+function renderBreadcrumb() {
+  const parts = appState.path ? appState.path.split("/").filter(Boolean) : [];
+  const crumbs = ["Hub", ...parts];
+  $("#breadcrumb").innerHTML = crumbs.map((p, i) => `<button data-idx="${i}">${p}</button>${i < crumbs.length - 1 ? "<span>/</span>" : ""}`).join("");
+  $("#breadcrumb").querySelectorAll("button").forEach((btn) => btn.addEventListener("click", () => { appState.path = parts.slice(0, parseInt(btn.dataset.idx, 10)).join("/"); appState.selectedPath = null; loadExplorer(); }));
 }
 
 function openPreview(path, name) {
   const ext = name.split(".").pop().toLowerCase();
-  if (["jpg", "jpeg", "png", "gif", "webp"].includes(ext)) {
-    showLightbox(`/files/${encodeURIComponent(path)}`);
-  } else if (ext === "pdf") {
-    window.open(`/files/${encodeURIComponent(path)}`, "_blank");
-  } else if (["md", "txt", "py", "js", "css", "html", "json"].includes(ext)) {
-    openTextEditor(path, name);
-  } else {
-    window.open(`/files/${encodeURIComponent(path)}`, "_blank");
-  }
+  if (["jpg", "jpeg", "png", "gif", "webp"].includes(ext)) showLightbox(`/files/${encodeURIComponent(path)}`);
+  else if (ext === "pdf") window.open(`/files/${encodeURIComponent(path)}`, "_blank");
+  else if (["md", "txt", "py", "js", "css", "html", "json"].includes(ext)) openTextEditor(path, name);
+  else window.open(`/files/${encodeURIComponent(path)}`, "_blank");
 }
 
 function showLightbox(src) {
@@ -790,41 +672,16 @@ function showLightbox(src) {
 async function openTextEditor(path, name) {
   try {
     const data = await getJSON(`/api/explorer/file?path=${encodeURIComponent(path)}`);
-    const modal = document.createElement("div");
-    modal.className = "modal show";
-    modal.innerHTML = `
-      <div class="modal-card wide">
-        <div class="modal-header"><h3>${name}</h3><button class="close-modal">×</button></div>
-        <div class="modal-body">
-          <textarea id="file-editor" rows="20" style="width:100%;font-family:monospace">${data.content}</textarea>
-          <button id="save-file" class="btn-primary" style="margin-top:10px">Speichern</button>
-        </div>
-      </div>`;
+    const modal = document.createElement("div"); modal.className = "modal show";
+    modal.innerHTML = `<div class="modal-card wide"><div class="modal-header"><h3>${name}</h3><button class="close-modal">×</button></div><div class="modal-body"><textarea id="file-editor" rows="22" style="width:100%;font-family:monospace;background:var(--surface-2);color:var(--text);border:none;border-radius:12px;padding:12px">${escapeHtml(data.content)}</textarea><button id="save-file" class="btn-primary" style="margin-top:12px">Speichern</button></div></div>`;
     modal.addEventListener("click", (e) => { if (e.target === modal) modal.remove(); });
     modal.querySelector(".close-modal").addEventListener("click", () => modal.remove());
-    modal.querySelector("#save-file").addEventListener("click", async () => {
-      const content = modal.querySelector("#file-editor").value;
-      const res = await postJSON("/api/explorer/file", { path, content });
-      flash(res.ok ? "Gespeichert" : "Fehler", res.ok ? "ok" : "error");
-    });
+    modal.querySelector("#save-file").addEventListener("click", async () => { const res = await postJSON("/api/explorer/file", { path, content: modal.querySelector("#file-editor").value }); flash(res.ok ? "Gespeichert" : "Fehler", res.ok ? "ok" : "error"); });
     document.body.appendChild(modal);
   } catch (e) { flash("Fehler", "error"); }
 }
 
-function renderBreadcrumb() {
-  const parts = appState.path ? appState.path.split("/").filter(Boolean) : [];
-  const crumbs = ["Hub", ...parts];
-  $("#breadcrumb").innerHTML = crumbs.map((p, i) => `
-    <button data-idx="${i}">${p}</button>
-    ${i < crumbs.length - 1 ? "<span style='color:var(--muted)'>/</span>" : ""}`).join("");
-  $("#breadcrumb").querySelectorAll("button").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const idx = parseInt(btn.dataset.idx, 10);
-      appState.path = parts.slice(0, idx).join("/");
-      loadExplorer();
-    });
-  });
-}
+function escapeHtml(text) { return (text || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
 
 function iconForFile(name) {
   const ext = name.split(".").pop().toLowerCase();
@@ -841,67 +698,16 @@ function formatBytes(b) {
 // --- Settings ---
 function renderSettings(container) {
   const isDark = document.body.classList.contains("dark");
-  container.innerHTML = `
-    <h2 class="page-title">Settings</h2>
-    <div class="grid grid-2">
-      <div class="card">
-        <h3>🎨 Erscheinungsbild</h3>
-        <div class="setting-row">
-          <label>Dark Mode</label>
-          <input type="checkbox" id="dark-toggle" ${isDark ? "checked" : ""}>
-        </div>
-      </div>
-      <div class="card">
-        <h3>🔌 Integrationen</h3>
-        <div class="integration-list">
-          <div class="integration-item ok"><span class="status-dot"></span> Notion</div>
-          <div class="integration-item ok"><span class="status-dot"></span> Open-Meteo Wetter</div>
-          <div class="integration-item ok"><span class="status-dot"></span> Ollama Cloud KI</div>
-          <div class="integration-item gap"><span class="status-dot"></span> Google Calendar (Stufe 2)</div>
-        </div>
-      </div>
-      <div class="card" style="grid-column:1/-1">
-        <h3>🔐 Sicherheit</h3>
-        <div class="setting-row">
-          <label>Passwort ändern</label>
-          <button class="btn-secondary" id="toggle-pw">Ändern</button>
-        </div>
-        <form id="pw-form" style="display:none; margin-top:10px">
-          <input type="password" id="current-pw" placeholder="Aktuelles Passwort" required>
-          <input type="password" id="new-pw" placeholder="Neues Passwort" required>
-          <button type="submit" class="btn-primary">Speichern</button>
-          <pre id="pw-result" style="margin-top:10px; word-break:break-all; font-size:12px; color:var(--muted)"></pre>
-        </form>
-      </div>
-    </div>`;
-
+  container.innerHTML = `<h2 class="page-title">Settings</h2><div class="grid grid-2"><div class="card"><h3>🎨 Erscheinungsbild</h3><div class="setting-row"><label>Dark Mode</label><input type="checkbox" id="dark-toggle" ${isDark ? "checked" : ""}></div></div><div class="card"><h3>🔌 Integrationen</h3><div class="integration-list"><div class="integration-item ok"><span class="status-dot"></span> Notion</div><div class="integration-item ok"><span class="status-dot"></span> Open-Meteo Wetter</div><div class="integration-item ok"><span class="status-dot"></span> Ollama Cloud KI</div><div class="integration-item gap"><span class="status-dot"></span> Google Calendar (Stufe 2)</div></div></div><div class="card" style="grid-column:1/-1"><h3>🔐 Sicherheit</h3><div class="setting-row"><label>Passwort ändern</label><button class="btn-secondary" id="toggle-pw">Ändern</button></div><form id="pw-form" style="display:none; margin-top:10px"><input type="password" id="current-pw" placeholder="Aktuelles Passwort" required><input type="password" id="new-pw" placeholder="Neues Passwort" required><button type="submit" class="btn-primary">Speichern</button><pre id="pw-result" style="margin-top:10px; word-break:break-all; font-size:12px; color:var(--text-tertiary)"></pre></form></div></div>`;
   const toggle = $("#dark-toggle");
-  const applyTheme = () => {
-    document.body.classList.toggle("dark", toggle.checked);
-    document.body.classList.toggle("light", !toggle.checked);
-    localStorage.setItem("hub-theme", toggle.checked ? "dark" : "light");
-  };
-  toggle.addEventListener("change", applyTheme);
-  applyTheme();
-
-  $("#toggle-pw").addEventListener("click", () => {
-    const form = $("#pw-form");
-    form.style.display = form.style.display === "none" ? "block" : "none";
-  });
+  toggle.addEventListener("change", () => { document.body.classList.toggle("dark", toggle.checked); document.body.classList.toggle("light", !toggle.checked); localStorage.setItem("hub-theme", toggle.checked ? "dark" : "light"); });
+  $("#toggle-pw").addEventListener("click", () => { const form = $("#pw-form"); form.style.display = form.style.display === "none" ? "block" : "none"; });
   $("#pw-form").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const res = await postJSON("/api/settings/password", {
-      current: $("#current-pw").value,
-      new: $("#new-pw").value,
-    });
+    const res = await postJSON("/api/settings/password", { current: $("#current-pw").value, new: $("#new-pw").value });
     const out = $("#pw-result");
-    if (res.ok) {
-      out.textContent = `Neuer Hash:\n${res.hash}\n\nEintragen in .env: HUB_PASSWORD_HASH=${res.hash}`;
-      flash("Hash generiert — .env anpassen!");
-    } else {
-      out.textContent = res.error || "Fehler";
-      flash(res.error || "Fehler", "error");
-    }
+    if (res.ok) { out.textContent = `Neuer Hash:\n${res.hash}\n\nEintragen in .env: HUB_PASSWORD_HASH=${res.hash}`; flash("Hash generiert — .env anpassen!"); }
+    else { out.textContent = res.error || "Fehler"; flash(res.error || "Fehler", "error"); }
   });
 }
 
@@ -909,13 +715,5 @@ function renderSettings(container) {
   const saved = localStorage.getItem("hub-theme");
   if (saved === "light") document.body.classList.replace("dark", "light");
 })();
-
-function initChatExpand() {
-  const input = $("#chat-input");
-  if (!input) return;
-  input.addEventListener("focus", () => {
-    $(".chat-widget")?.classList.add("expanded");
-  });
-}
 
 document.addEventListener("DOMContentLoaded", init);
