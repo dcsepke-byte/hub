@@ -12,6 +12,7 @@ DEFAULT_LISTS = {
     "Filme": [],
     "Geschenke": [],
     "Ideen": [],
+    "Wünsche": [],
 }
 
 
@@ -43,14 +44,45 @@ def get_lists() -> Dict[str, List[Dict]]:
     return data
 
 
-def add_list_item(list_name: str, text: str) -> Dict:
+def create_list(name: str) -> Dict:
+    data = _load()
+    if name in data:
+        return {"ok": False, "error": "Liste existiert bereits"}
+    data[name] = []
+    _save(data)
+    return {"ok": True}
+
+
+def delete_list(name: str) -> Dict:
+    data = _load()
+    if name in DEFAULT_LISTS:
+        return {"ok": False, "error": "Standardliste kann nicht gelöscht werden"}
+    if name in data:
+        del data[name]
+        _save(data)
+        return {"ok": True}
+    return {"ok": False, "error": "Liste nicht gefunden"}
+
+
+def add_list_item(list_name: str, text: str, url: str = "") -> Dict:
     data = _load()
     if list_name not in data:
         data[list_name] = []
-    item = {"id": int(datetime.now().timestamp() * 1000), "text": text, "done": False, "created": datetime.now().isoformat()}
+    item = {"id": int(datetime.now().timestamp() * 1000), "text": text, "url": url, "done": False, "created": datetime.now().isoformat()}
     data[list_name].append(item)
     _save(data)
     return {"ok": True, "item": item}
+
+
+def update_list_item(list_name: str, item_id: int, text: str, url: str) -> Dict:
+    data = _load()
+    for item in data.get(list_name, []):
+        if item.get("id") == item_id:
+            item["text"] = text
+            item["url"] = url
+            _save(data)
+            return {"ok": True}
+    return {"ok": False, "error": "Item nicht gefunden"}
 
 
 def toggle_list_item(list_name: str, item_id: int) -> Dict:

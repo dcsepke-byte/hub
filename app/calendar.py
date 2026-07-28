@@ -54,7 +54,7 @@ def upcoming_events(days: int = 7, limit: int = 10) -> List[Dict]:
     return sorted(matches, key=lambda x: x.get("start", ""))[:limit]
 
 
-def add_event(title: str, start: str, duration_minutes: int = 60, project: str = "") -> Dict:
+def add_event(title: str, start: str, duration_minutes: int = 60, project: str = "", location: str = "") -> Dict:
     events = load_events()
     events.append({
         "id": len(events) + 1,
@@ -62,6 +62,7 @@ def add_event(title: str, start: str, duration_minutes: int = 60, project: str =
         "start": start,
         "duration": duration_minutes,
         "project": project,
+        "location": location.strip(),
         "created": datetime.now().isoformat(),
     })
     save_events(events)

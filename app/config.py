@@ -17,6 +17,7 @@ class Config:
     NOTION_TASKS_DB = os.environ.get("NOTION_TASKS_DB", "3a337b21-9b91-813f-a116-f62d656dbc9b")
     NOTION_KNOWLEDGE_DB = os.environ.get("NOTION_KNOWLEDGE_DB", "3a637b21-9b91-81ad-81e0-e164d4b3ef05")
     UPLOAD_FOLDER = BASE_DIR / "files"
+    FILES_DIR = str(BASE_DIR / "files")
     MAX_CONTENT_LENGTH = 50 * 1024 * 1024
     SESSION_COOKIE_SECURE = False
     SESSION_COOKIE_HTTPONLY = True

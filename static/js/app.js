@@ -25,12 +25,8 @@ function init() {
 }
 
 function initNav() {
-  $$("#iconNav a").forEach((el) => {
-    el.addEventListener("click", (e) => {
-      e.preventDefault();
-      navigate(el.dataset.page);
-    });
-  });
+  const home = $("#homeBtn");
+  if (home) home.addEventListener("click", (e) => { e.preventDefault(); navigate("home"); });
 }
 
 function initSearch() {
@@ -77,11 +73,12 @@ function renderSearchResults(data) {
 
 function initQuickAdd() {
   const modal = $("#quickAddModal");
+  if (!modal) return;
   const show = () => modal.classList.add("show");
   const hide = () => modal.classList.remove("show");
-  $("#quickAdd").addEventListener("click", show);
-  $("#fab").addEventListener("click", show);
-  $(".close-modal").addEventListener("click", hide);
+  $("#quickAdd")?.addEventListener("click", show);
+  $("#fab")?.addEventListener("click", show);
+  $(".close-modal")?.addEventListener("click", hide);
   modal.addEventListener("click", (e) => { if (e.target === modal) hide(); });
   let qtype = "task";
   $$(".quick-type").forEach((btn) => {
@@ -94,10 +91,10 @@ function initQuickAdd() {
       $("#quickFile").style.display = qtype === "file" ? "block" : "none";
     });
   });
-  $("#quickForm").addEventListener("submit", async (e) => {
+  $("#quickForm")?.addEventListener("submit", async (e) => {
     e.preventDefault();
     const title = $("#quickTitle").value.trim();
-    const project = $("#quickProject").value;
+    const project = $("#quickProject")?.value || "";
     if (!title && qtype !== "file") return;
     if (qtype === "task") {
       const due = $("#quickDue").value;
@@ -121,12 +118,13 @@ function initQuickAdd() {
     }
     hide();
     $("#quickForm").reset();
-    if (appState.page === "tasks") renderTasks();
-    if (appState.page === "explorer") renderExplorer();
+    if (appState.page === "tasks") renderTasks($("#content"));
+    if (appState.page === "explorer") renderExplorer($("#content"));
   });
 }
 
 function initSocket() {
+  if (typeof io === "undefined") return;
   socket = io({ transports: ["polling"] });
   socket.on("connect", () => console.log("socket connected"));
   socket.on("chat_message", (msg) => {
@@ -143,7 +141,8 @@ function navigate(page, push = true) {
   const target = PAGES[page] ? page : "home";
   appState.page = target;
   if (push && location.hash.slice(1) !== target) history.pushState(null, "", `#${target}`);
-  $$("#iconNav a").forEach((el) => el.classList.toggle("active", el.dataset.page === target));
+  const home = $("#homeBtn");
+  if (home) home.classList.toggle("active", target === "home");
   const content = $("#content");
   content.innerHTML = "";
   (PAGES[target] || renderHome)(content);
@@ -229,7 +228,7 @@ async function renderHome(container) {
       </div>
       <div class="card" id="calendar-card"><h3>🗓️ Termine heute</h3><div id="today-events" class="loader"></div><button class="btn-secondary" id="add-event-btn" style="margin-top:12px;width:100%">+ Termin</button></div>
       <div class="card" id="tasks-card"><h3>✅ Heutige To-Do</h3><div class="loader"></div></div>
-      <div class="card" id="day-card"><h3>📅 Tagesbericht</h3><div id="daily-report" class="loader"></div></div>
+      <div class="card" id="stocks-card"><h3>📈 Watchlist</h3><div class="loader"></div></div>
       <div class="card" id="news-card"><h3>📰 News</h3><div id="news-list" class="loader"></div></div>
     </div>`;
   bindAppClicks();
@@ -238,7 +237,7 @@ async function renderHome(container) {
   loadTodayTasks();
   loadTodayEvents();
   loadNews();
-  loadDailyReport();
+  loadStocks();
 }
 
 function initChat() {
@@ -248,7 +247,7 @@ function initChat() {
     widget.classList.toggle("expanded");
     if (widget.classList.contains("expanded")) $("#chat-input")?.focus();
   });
-  $("#chat-form").addEventListener("submit", (e) => {
+  $("#chat-form")?.addEventListener("submit", (e) => {
     e.preventDefault();
     const input = $("#chat-input");
     const text = input.value.trim();
@@ -263,7 +262,7 @@ function initChat() {
   });
   const box = $("#chat-box");
   chatHistory.slice(-30).forEach((m) => appendMessage(box, m));
-  $("#chat-input").addEventListener("focus", () => widget.classList.add("expanded"));
+  $("#chat-input")?.addEventListener("focus", () => widget.classList.add("expanded"));
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") widget.classList.remove("expanded"); });
 }
 
@@ -292,7 +291,7 @@ async function loadTodayEvents() {
     const data = await getJSON("/api/calendar");
     el.classList.remove("loader");
     const events = data.today || [];
-    el.innerHTML = events.length ? events.map((e) => `<div class="event-row"><div class="event-title">${e.title}</div><div class="event-date">${new Date(e.start).toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'})}</div></div>`).join("") : "<p class='empty-state'>Keine Termine heute.</p>";
+    el.innerHTML = events.length ? events.map((e) => eventRow(e, true)).join("") : "<p class='empty-state'>Keine Termine heute.</p>";
   } catch (e) { el.classList.remove("loader"); el.innerHTML = "<p class='empty-state'>Fehler.</p>"; }
   $("#add-event-btn")?.addEventListener("click", () => {
     const title = prompt("Titel:"); if (!title) return;
@@ -300,6 +299,12 @@ async function loadTodayEvents() {
     const today = new Date().toISOString().slice(0, 10);
     postJSON("/api/calendar", { title, start: `${today}T${time}:00` }).then((r) => { if (r.ok) { flash("Termin hinzugefügt"); loadTodayEvents(); } else flash("Fehler", "error"); });
   });
+}
+
+function eventRow(e, showNav = false) {
+  const start = new Date(e.start);
+  const navUrl = e.location ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(e.location)}` : null;
+  return `<div class="event-row"><div class="event-title">${e.title}</div><div class="event-date">${start.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'})}${showNav && navUrl ? ` <a class="event-nav" href="${navUrl}" target="_blank">🗺️</a>` : ""}</div></div>`;
 }
 
 async function loadNews() {
@@ -313,14 +318,32 @@ async function loadNews() {
   } catch (e) { el.classList.remove("loader"); el.innerHTML = "<p class='empty-state'>Fehler beim Laden.</p>"; }
 }
 
-async function loadDailyReport() {
-  const el = $("#daily-report");
+async function loadStocks() {
+  const el = $("#stocks-card");
   if (!el) return;
   try {
-    const data = await getJSON("/api/daily-report");
+    const data = await getJSON("/api/stocks");
     el.classList.remove("loader");
-    el.innerHTML = `<div class="report-day"><div class="date">Heute</div><div style="white-space:pre-wrap">${data.text || "Kein Tagesbericht verfügbar."}</div></div>`;
-  } catch (e) { el.classList.remove("loader"); el.innerHTML = "<p class='empty-state'>Fehler beim Laden.</p>"; }
+    if (!data.ok) { el.innerHTML = `<h3>📈 Watchlist</h3><p class='empty-state'>${data.error || "Aktien nicht verfügbar"}</p>`; return; }
+    el.innerHTML = `<h3>📈 Watchlist</h3><div class="task-list">${data.items.map((s) => `<div class="stock-card"><div class="stock-symbol">${s.symbol}</div><div class="stock-price"><div class="price">${s.price.toFixed(2)} $</div><div class="change ${s.change >= 0 ? 'stock-up' : 'stock-down'}">${s.change >= 0 ? '+' : ''}${s.change.toFixed(2)} (${s.percent >= 0 ? '+' : ''}${s.percent.toFixed(2)}%)</div></div></div>`).join("")}</div>
+      <form class="stock-form" id="stock-form"><input type="text" id="stock-symbol" placeholder="Symbol z.B. AAPL" maxlength="6"><button type="submit" class="btn-primary">+</button></form>`;
+    $("#stock-form")?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const sym = $("#stock-symbol").value.trim().toUpperCase();
+      const res = await postJSON("/api/stocks", { symbol: sym });
+      flash(res.ok ? `${sym} hinzugefügt` : (res.error || "Fehler"), res.ok ? "ok" : "error");
+      if (res.ok) loadStocks();
+    });
+    el.querySelectorAll(".stock-card").forEach((card) => {
+      card.addEventListener("contextmenu", async (e) => {
+        e.preventDefault();
+        if (confirm(`${card.querySelector(".stock-symbol").textContent} entfernen?`)) {
+          await deleteReq(`/api/stocks/${card.querySelector(".stock-symbol").textContent}`);
+          loadStocks();
+        }
+      });
+    });
+  } catch (e) { el.classList.remove("loader"); el.innerHTML = "<h3>📈 Watchlist</h3><p class='empty-state'>Fehler.</p>"; }
 }
 
 async function loadTodayTasks() {
@@ -329,7 +352,7 @@ async function loadTodayTasks() {
     const el = $("#tasks-card");
     const today = tasks.slice(0, 6);
     el.innerHTML = `<h3>✅ Heutige To-Do</h3><div class="task-list">${today.length ? today.map(taskRow).join("") : "<p class='empty-state'>Keine offenen Tasks. 🎉</p>"}</div>`;
-    bindTaskCheckboxes(el, () => { loadTodayTasks(); if (appState.page === "tasks") renderTasks(); });
+    bindTaskCheckboxes(el, () => { loadTodayTasks(); if (appState.page === "tasks") renderTasks($("#content")); });
   } catch (e) { $("#tasks-card").innerHTML = "<h3>✅ Heutige To-Do</h3><p class='empty-state'>Fehler beim Laden.</p>"; }
 }
 
@@ -341,6 +364,7 @@ function weatherIcon(code, isDay) {
 // --- Projects ---
 async function renderProjects(container) {
   container.innerHTML = `
+    <div class="back-home"><button class="btn-secondary" id="back-home">← Home</button></div>
     <h2 class="page-title">Projekte</h2>
     <div class="card" style="margin-bottom:20px">
       <h3>➕ Neues Projekt</h3>
@@ -354,6 +378,7 @@ async function renderProjects(container) {
       </form>
     </div>
     <div class="grid grid-2" id="project-grid"><div class="loader"></div></div>`;
+  $("#back-home")?.addEventListener("click", () => navigate("home"));
   $("#project-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const res = await postJSON("/api/projects", {
@@ -409,7 +434,10 @@ async function editProject(id) {
 async function renderProjectDetail(container) {
   const id = appState.projectDetail;
   if (!id) { navigate("projects"); return; }
-  container.innerHTML = `<h2 class="page-title" id="pd-title"></h2><div class="grid grid-2"><div class="card"><h3>📋 Offene Tasks</h3><div id="pd-tasks" class="loader"></div></div><div class="card"><h3>📅 Kommende Termine</h3><div id="pd-events" class="loader"></div></div><div class="card" style="grid-column:1/-1"><h3>🔗 Links</h3><div id="pd-links" class="loader"></div></div></div>`;
+  container.innerHTML = `<div class="back-home"><button class="btn-secondary" id="back-home">← Home</button> <button class="btn-secondary" id="back-projects">← Projekte</button></div>
+    <h2 class="page-title" id="pd-title"></h2><div class="grid grid-2"><div class="card"><h3>📋 Offene Tasks</h3><div id="pd-tasks" class="loader"></div></div><div class="card"><h3>📅 Kommende Termine</h3><div id="pd-events" class="loader"></div></div><div class="card" style="grid-column:1/-1"><h3>🔗 Links</h3><div id="pd-links" class="loader"></div></div></div>`;
+  $("#back-home")?.addEventListener("click", () => navigate("home"));
+  $("#back-projects")?.addEventListener("click", () => navigate("projects"));
   try {
     const p = await getJSON(`/api/projects/${id}`);
     $("#pd-title").textContent = `${p.icon} ${p.name}`;
@@ -418,7 +446,7 @@ async function renderProjectDetail(container) {
     tasksEl.innerHTML = p.tasks?.length ? p.tasks.map(taskRow).join("") : "<p class='empty-state'>Keine offenen Tasks.</p>";
     bindTaskCheckboxes(tasksEl, () => renderProjectDetail(container));
     const eventsEl = $("#pd-events"); eventsEl.classList.remove("loader");
-    eventsEl.innerHTML = p.events?.length ? p.events.map((e) => `<div class="event-row"><div class="event-title">${e.title}</div><div class="event-date">${new Date(e.start).toLocaleString('de-DE', {dateStyle:'short', timeStyle:'short'})}</div></div>`).join("") : "<p class='empty-state'>Keine Termine.</p>";
+    eventsEl.innerHTML = p.events?.length ? p.events.map((e) => eventRow(e)).join("") : "<p class='empty-state'>Keine Termine.</p>";
     const linksEl = $("#pd-links"); linksEl.classList.remove("loader");
     linksEl.innerHTML = p.links?.length ? p.links.map((l) => `<a href="${l.url}" target="_blank" class="project-link" style="border-color:${p.color}">${l.name}</a>`).join("") : "<p class='empty-state'>Keine Links.</p>";
   } catch (e) { container.innerHTML = "<p class='empty-state'>Projekt konnte nicht geladen werden.</p>"; }
@@ -427,15 +455,29 @@ async function renderProjectDetail(container) {
 // --- Tasks ---
 async function renderTasks(container) {
   container.innerHTML = `
+    <div class="back-home"><button class="btn-secondary" id="back-home">← Home</button></div>
     <h2 class="page-title">To-Do</h2>
     <div class="task-tabs"><button data-tab="tasks" class="active">Aufgaben</button><button data-tab="lists">Listen</button><button data-tab="dashboard">Dashboard</button></div>
     <div id="task-panel">
       <div class="task-filter"><button data-filter="all" class="active">Alle</button><button data-filter="Offen">Offen</button><button data-filter="Erledigt">Erledigt</button><button data-filter="Party Arena">Party Arena</button><button data-filter="KI-Videos">KI-Videos</button><button data-filter="Hochzeit">Hochzeit</button><button data-filter="Server">Server</button></div>
       <div class="task-list" id="task-list"><div class="loader"></div></div>
     </div>
-    <div id="lists-panel" style="display:none"><div class="list-tabs" id="list-tabs"></div><div class="task-list" id="lists-list"><div class="loader"></div></div><form id="list-add-form" class="list-add-form"><input type="text" id="list-new-item" placeholder="Neuer Eintrag..."><button type="submit" class="btn-primary">+</button></form></div>
+    <div id="lists-panel" style="display:none">
+      <div class="list-tabs" id="list-tabs"></div>
+      <div id="lists-list" class="task-list"><div class="loader"></div></div>
+      <form id="list-add-form" class="list-add-form">
+        <input type="text" id="list-new-item" placeholder="Neuer Eintrag...">
+        <input type="url" id="list-new-url" placeholder="URL (optional)" style="flex:1">
+        <button type="submit" class="btn-primary">+</button>
+      </form>
+      <form id="list-create-form" class="list-add-form" style="margin-top:8px">
+        <input type="text" id="list-new-name" placeholder="Neue Liste..." required>
+        <button type="submit" class="btn-secondary">Liste anlegen</button>
+      </form>
+    </div>
     <div id="dashboard-panel" style="display:none"><div class="grid grid-3" id="dash-grid"></div></div>`;
 
+  $("#back-home")?.addEventListener("click", () => navigate("home"));
   $$(".task-tabs button").forEach((btn) => {
     btn.addEventListener("click", () => {
       $$(".task-tabs button").forEach((b) => b.classList.remove("active")); btn.classList.add("active");
@@ -452,13 +494,22 @@ async function renderTasks(container) {
   });
   $("#list-add-form").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const input = $("#list-new-item");
-    if (!input.value.trim() || !appState.activeList) return;
-    const res = await postJSON(`/api/lists/${encodeURIComponent(appState.activeList)}/items`, { text: input.value.trim() });
-    if (res.ok) { input.value = ""; loadLists(); } else flash("Fehler", "error");
+    const text = $("#list-new-item").value.trim();
+    const url = $("#list-new-url").value.trim();
+    if (!text || !appState.activeList) return;
+    const res = await postJSON(`/api/lists/${encodeURIComponent(appState.activeList)}/items`, { text, url });
+    if (res.ok) { $("#list-add-form").reset(); loadLists(); } else flash("Fehler", "error");
+  });
+  $("#list-create-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const name = $("#list-new-name").value.trim();
+    if (!name) return;
+    const res = await postJSON("/api/lists", { name });
+    flash(res.ok ? `Liste "${name}" erstellt` : (res.error || "Fehler"), res.ok ? "ok" : "error");
+    if (res.ok) { $("#list-create-form").reset(); appState.activeList = name; loadLists(); }
   });
   await loadTasks();
-  appState.activeList = "Einkauf"; loadLists();
+  appState.activeList = appState.activeList || "Einkauf"; loadLists();
 }
 
 function dueClass(due) {
@@ -511,13 +562,43 @@ async function loadLists() {
     const data = await getJSON("/api/lists");
     const names = Object.keys(data);
     appState.activeList = appState.activeList || names[0];
-    tabs.innerHTML = names.map((n) => `<button class="list-tab ${n === appState.activeList ? 'active' : ''}" data-list="${n}">${n}</button>`).join("");
-    $$("#list-tabs button").forEach((btn) => btn.addEventListener("click", () => { appState.activeList = btn.dataset.list; loadLists(); }));
+    tabs.innerHTML = names.map((n) => `<button class="list-tab ${n === appState.activeList ? 'active' : ''}" data-list="${n}">${n}${n !== "Einkauf" && n !== "Filme" && n !== "Geschenke" && n !== "Ideen" && n !== "Wünsche" ? ' ×' : ''}</button>`).join("");
+    $$("#list-tabs button").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (btn.textContent.includes("×") && confirm(`Liste "${btn.dataset.list}" löschen?`)) {
+          deleteReq(`/api/lists/${encodeURIComponent(btn.dataset.list)}`).then(loadLists);
+          return;
+        }
+        appState.activeList = btn.dataset.list; loadLists();
+      });
+    });
     const items = data[appState.activeList] || [];
-    list.innerHTML = items.length ? items.map((it) => `<div class="task-item ${it.done ? 'done' : ''}" data-list="${appState.activeList}" data-id="${it.id}"><input type="checkbox" ${it.done ? 'checked' : ''} data-list="${appState.activeList}" data-id="${it.id}"><div class="task-title" style="${it.done ? 'text-decoration:line-through;color:var(--text-tertiary)' : ''}">${it.text}</div></div>`).join("") : "<p class='empty-state'>Liste leer.</p>";
+    list.innerHTML = items.length ? items.map((it) => listRow(it)).join("") : "<p class='empty-state'>Liste leer.</p>";
     list.querySelectorAll("input[type=checkbox]").forEach((box) => box.addEventListener("change", async () => { await patchJSON(`/api/lists/${encodeURIComponent(box.dataset.list)}/items/${box.dataset.id}/toggle`, {}); loadLists(); }));
-    initSwipe(list, loadLists, true);
+    list.querySelectorAll(".edit-btn").forEach((btn) => btn.addEventListener("click", () => editListItem(btn.dataset.list, parseInt(btn.dataset.id, 10))));
+    list.querySelectorAll(".del-btn").forEach((btn) => btn.addEventListener("click", async () => { if (confirm("Eintrag löschen?")) { await fetch(`/api/lists/${encodeURIComponent(btn.dataset.list)}/items/${btn.dataset.id}`, { method: "DELETE" }); loadLists(); } }));
   } catch (e) { list.innerHTML = "<p class='empty-state'>Fehler.</p>"; }
+}
+
+function listRow(it) {
+  return `<div class="list-row ${it.done ? 'done' : ''}" data-list="${appState.activeList}" data-id="${it.id}">
+      <input type="checkbox" ${it.done ? 'checked' : ''} data-list="${appState.activeList}" data-id="${it.id}">
+      <div class="text">${it.text}${it.url ? ` <a href="${it.url}" target="_blank" class="list-item-url">↗</a>` : ""}</div>
+      <div class="actions"><button class="edit-btn" data-list="${appState.activeList}" data-id="${it.id}">✎</button><button class="del-btn" data-list="${appState.activeList}" data-id="${it.id}">×</button></div>
+    </div>`;
+}
+
+async function editListItem(listName, id) {
+  const data = await getJSON("/api/lists");
+  const item = data[listName]?.find((i) => i.id === id);
+  if (!item) return;
+  const text = prompt("Text:", item.text);
+  if (text === null) return;
+  const url = prompt("URL:", item.url || "");
+  if (url === null) return;
+  const res = await patchJSON(`/api/lists/${encodeURIComponent(listName)}/items/${id}`, { text: text.trim(), url: url.trim() });
+  flash(res.ok ? "Gespeichert" : "Fehler", res.ok ? "ok" : "error");
+  if (res.ok) loadLists();
 }
 
 function initSwipe(root, reloadFn, isList = false) {
@@ -558,12 +639,12 @@ function bindTaskCheckboxes(root, cb) {
   });
 }
 
-// --- Explorer Windows ---
+// --- Explorer vereinfacht ---
 async function renderExplorer(container) {
   container.innerHTML = `
+    <div class="back-home"><button class="btn-secondary" id="back-home">← Home</button></div>
     <h2 class="page-title">Explorer</h2>
     <div class="explorer-wrap">
-      <div class="explorer-tree glass" id="explorer-tree"><div class="loader"></div></div>
       <div class="explorer-main">
         <div class="explorer-toolbar">
           <button id="up-btn">⬆ Hoch</button>
@@ -578,44 +659,15 @@ async function renderExplorer(container) {
         <div class="explorer-content" id="explorer-content" data-view="grid"><div class="loader"></div></div>
       </div>
     </div>`;
+  $("#back-home")?.addEventListener("click", () => navigate("home"));
   $("#up-btn").addEventListener("click", () => { appState.path = appState.path.split("/").slice(0, -1).join("/"); appState.selectedPath = null; loadExplorer(); });
-  $("#new-folder-btn").addEventListener("click", () => { const name = prompt("Ordnername:"); if (name) postJSON("/api/explorer/folder", { path: appState.path || "", name }).then(() => { loadTree(); loadExplorer(); }); });
-  $("#rename-btn").addEventListener("click", () => { if (!appState.selectedPath) return flash("Datei wählen", "error"); const name = prompt("Neuer Name:"); if (name) postJSON("/api/explorer/rename", { path: appState.selectedPath, name }).then(() => { appState.selectedPath = null; loadTree(); loadExplorer(); }); });
-  $("#delete-btn").addEventListener("click", () => { if (!appState.selectedPath) return flash("Datei wählen", "error"); if (confirm("Wirklich löschen?")) postJSON("/api/explorer/delete", { path: appState.selectedPath }).then(() => { appState.selectedPath = null; loadTree(); loadExplorer(); }); });
-  $("#explorer-upload").addEventListener("change", async (e) => { for (const file of e.target.files) await uploadFile(file); e.target.value = ""; loadTree(); });
+  $("#new-folder-btn").addEventListener("click", () => { const name = prompt("Ordnername:"); if (name) postJSON("/api/explorer/folder", { path: appState.path || "", name }).then(() => loadExplorer()); });
+  $("#rename-btn").addEventListener("click", () => { if (!appState.selectedPath) return flash("Datei wählen", "error"); const name = prompt("Neuer Name:"); if (name) postJSON("/api/explorer/rename", { path: appState.selectedPath, name }).then(() => { appState.selectedPath = null; loadExplorer(); }); });
+  $("#delete-btn").addEventListener("click", () => { if (!appState.selectedPath) return flash("Datei wählen", "error"); if (confirm("Wirklich löschen?")) postJSON("/api/explorer/delete", { path: appState.selectedPath }).then(() => { appState.selectedPath = null; loadExplorer(); }); });
+  $("#explorer-upload").addEventListener("change", async (e) => { for (const file of e.target.files) await uploadFile(file); e.target.value = ""; loadExplorer(); });
   $("#view-grid").addEventListener("click", () => { appState.explorerView = "grid"; $("#explorer-content").dataset.view = "grid"; $$("#view-grid,#view-list").forEach((b) => b.classList.toggle("active", b.id === "view-grid")); });
   $("#view-list").addEventListener("click", () => { appState.explorerView = "list"; $("#explorer-content").dataset.view = "list"; $$("#view-grid,#view-list").forEach((b) => b.classList.toggle("active", b.id === "view-list")); });
-  loadTree();
   loadExplorer();
-}
-
-async function loadTree() {
-  const tree = $("#explorer-tree");
-  try {
-    const data = await getJSON("/api/explorer/tree");
-    tree.innerHTML = `<ul>${data.map(renderTreeNode).join("")}</ul>`;
-    bindTree(tree);
-  } catch (e) { tree.innerHTML = "<p class='empty-state'>Fehler.</p>"; }
-}
-
-function renderTreeNode(node) {
-  const hasChildren = node.children && node.children.length;
-  return `<li><div class="node" data-path="${node.path}"><span class="arrow ${hasChildren ? '' : 'hidden'}">▶</span><span>📁</span><span>${node.name}</span></div>${hasChildren ? `<ul class="children">${node.children.map(renderTreeNode).join("")}</ul>` : ""}</li>`;
-}
-
-function bindTree(root) {
-  root.querySelectorAll(".node").forEach((node) => {
-    node.addEventListener("click", (e) => {
-      e.stopPropagation();
-      root.querySelectorAll(".node").forEach((n) => n.classList.remove("active"));
-      node.classList.add("active");
-      const children = node.parentElement.querySelector(".children");
-      if (children) { children.classList.toggle("open"); node.classList.toggle("open"); }
-      appState.path = node.dataset.path;
-      appState.selectedPath = null;
-      loadExplorer();
-    });
-  });
 }
 
 async function loadExplorer() {
@@ -623,10 +675,13 @@ async function loadExplorer() {
   try {
     const items = await getJSON(`/api/explorer?path=${encodeURIComponent(appState.path || "")}`);
     content.dataset.view = appState.explorerView || "grid";
-    content.innerHTML = items.map((it) => `<div class="explorer-item ${appState.selectedPath === it.path ? 'selected' : ''}" data-path="${it.path}" data-type="${it.type}" data-name="${it.name}"><div class="icon">${it.type === "folder" ? "📁" : iconForFile(it.name)}</div><div class="name">${it.name}</div>${it.type === "file" ? `<div class="meta">${formatBytes(it.size)}</div>` : ""}</div>`).join("");
+    content.innerHTML = items.map((it) => `<div class="explorer-item ${appState.selectedPath === it.path ? 'selected' : ''}" data-path="${it.path}" data-type="${it.type}" data-name="${it.name}">
+        <div class="icon">${it.type === "folder" ? "📁" : iconForFile(it.name)}</div>
+        <div class="name">${it.name}</div>
+        ${it.type === "file" ? `<div class="meta">${formatBytes(it.size)}</div>` : ""}
+      </div>`).join("");
     $$(".explorer-item").forEach((el) => {
-      el.addEventListener("click", (e) => {
-        e.stopPropagation();
+      el.addEventListener("click", () => {
         if (el.dataset.type === "folder") { appState.path = el.dataset.path; appState.selectedPath = null; loadExplorer(); }
         else { appState.selectedPath = el.dataset.path; $$(".explorer-item").forEach((i) => i.classList.remove("selected")); el.classList.add("selected"); }
       });
@@ -634,7 +689,7 @@ async function loadExplorer() {
     });
     content.addEventListener("dragover", (e) => { e.preventDefault(); content.classList.add("drag-over"); });
     content.addEventListener("dragleave", () => content.classList.remove("drag-over"));
-    content.addEventListener("drop", async (e) => { e.preventDefault(); content.classList.remove("drag-over"); for (const file of e.dataTransfer.files) await uploadFile(file); loadTree(); });
+    content.addEventListener("drop", async (e) => { e.preventDefault(); content.classList.remove("drag-over"); for (const file of e.dataTransfer.files) await uploadFile(file); loadExplorer(); });
     renderBreadcrumb();
   } catch (e) { content.innerHTML = "<p class='empty-state'>Fehler.</p>"; }
 }
@@ -698,11 +753,12 @@ function formatBytes(b) {
 // --- Settings ---
 function renderSettings(container) {
   const isDark = document.body.classList.contains("dark");
-  container.innerHTML = `<h2 class="page-title">Settings</h2><div class="grid grid-2"><div class="card"><h3>🎨 Erscheinungsbild</h3><div class="setting-row"><label>Dark Mode</label><input type="checkbox" id="dark-toggle" ${isDark ? "checked" : ""}></div></div><div class="card"><h3>🔌 Integrationen</h3><div class="integration-list"><div class="integration-item ok"><span class="status-dot"></span> Notion</div><div class="integration-item ok"><span class="status-dot"></span> Open-Meteo Wetter</div><div class="integration-item ok"><span class="status-dot"></span> Ollama Cloud KI</div><div class="integration-item gap"><span class="status-dot"></span> Google Calendar (Stufe 2)</div></div></div><div class="card" style="grid-column:1/-1"><h3>🔐 Sicherheit</h3><div class="setting-row"><label>Passwort ändern</label><button class="btn-secondary" id="toggle-pw">Ändern</button></div><form id="pw-form" style="display:none; margin-top:10px"><input type="password" id="current-pw" placeholder="Aktuelles Passwort" required><input type="password" id="new-pw" placeholder="Neues Passwort" required><button type="submit" class="btn-primary">Speichern</button><pre id="pw-result" style="margin-top:10px; word-break:break-all; font-size:12px; color:var(--text-tertiary)"></pre></form></div></div>`;
+  container.innerHTML = `<div class="back-home"><button class="btn-secondary" id="back-home">← Home</button></div><h2 class="page-title">Settings</h2><div class="grid grid-2"><div class="card"><h3>🎨 Erscheinungsbild</h3><div class="setting-row"><label>Dark Mode</label><input type="checkbox" id="dark-toggle" ${isDark ? "checked" : ""}></div></div><div class="card"><h3>🔌 Integrationen</h3><div class="integration-list"><div class="integration-item ok"><span class="status-dot"></span> Notion</div><div class="integration-item ok"><span class="status-dot"></span> Open-Meteo Wetter</div><div class="integration-item ok"><span class="status-dot"></span> Ollama Cloud KI</div><div class="integration-item gap"><span class="status-dot"></span> Google Calendar (Stufe 2)</div></div></div><div class="card" style="grid-column:1/-1"><h3>🔐 Sicherheit</h3><div class="setting-row"><label>Passwort ändern</label><button class="btn-secondary" id="toggle-pw">Ändern</button></div><form id="pw-form" style="display:none; margin-top:10px"><input type="password" id="current-pw" placeholder="Aktuelles Passwort" required><input type="password" id="new-pw" placeholder="Neues Passwort" required><button type="submit" class="btn-primary">Speichern</button><pre id="pw-result" style="margin-top:10px; word-break:break-all; font-size:12px; color:var(--text-tertiary)"></pre></form></div></div>`;
+  $("#back-home")?.addEventListener("click", () => navigate("home"));
   const toggle = $("#dark-toggle");
   toggle.addEventListener("change", () => { document.body.classList.toggle("dark", toggle.checked); document.body.classList.toggle("light", !toggle.checked); localStorage.setItem("hub-theme", toggle.checked ? "dark" : "light"); });
-  $("#toggle-pw").addEventListener("click", () => { const form = $("#pw-form"); form.style.display = form.style.display === "none" ? "block" : "none"; });
-  $("#pw-form").addEventListener("submit", async (e) => {
+  $("#toggle-pw")?.addEventListener("click", () => { const form = $("#pw-form"); form.style.display = form.style.display === "none" ? "block" : "none"; });
+  $("#pw-form")?.addEventListener("submit", async (e) => {
     e.preventDefault();
     const res = await postJSON("/api/settings/password", { current: $("#current-pw").value, new: $("#new-pw").value });
     const out = $("#pw-result");

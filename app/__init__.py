@@ -11,7 +11,7 @@ from app.config import Config
 from app.auth import require_login, verify_password, LoginThrottle
 from app import notion, weather, explorer
 from app import hermes, search as search_module, news, calendar, lists
-from app import projects as projects_module
+from app import projects as projects_module, stocks
 
 PROJECTS_DATA = []
 
@@ -299,7 +299,7 @@ def api_create_event():
     start = data.get("start", "").strip()
     if not title or not start:
         return jsonify({"ok": False, "error": "Titel und Startzeit erforderlich"}), 400
-    return jsonify(calendar.add_event(title, start, data.get("duration", 60), data.get("project", "")))
+    return jsonify(calendar.add_event(title, start, data.get("duration", 60), data.get("project", ""), data.get("location", "")))
 
 
 @app.route("/api/lists")
@@ -308,14 +308,35 @@ def api_lists():
     return jsonify(lists.get_lists())
 
 
+@app.route("/api/lists", methods=["POST"])
+@require_login
+def api_create_list():
+    data = request.get_json(silent=True) or {}
+    return jsonify(lists.create_list(data.get("name", "").strip()))
+
+
+@app.route("/api/lists/<name>", methods=["DELETE"])
+@require_login
+def api_delete_list(name):
+    return jsonify(lists.delete_list(name))
+
+
 @app.route("/api/lists/<list_name>/items", methods=["POST"])
 @require_login
 def api_add_list_item(list_name):
     data = request.get_json(silent=True) or {}
     text = data.get("text", "").strip()
+    url = data.get("url", "").strip()
     if not text:
         return jsonify({"ok": False, "error": "Text fehlt"}), 400
-    return jsonify(lists.add_list_item(list_name, text))
+    return jsonify(lists.add_list_item(list_name, text, url))
+
+
+@app.route("/api/lists/<list_name>/items/<int:item_id>", methods=["PATCH"])
+@require_login
+def api_update_list_item(list_name, item_id):
+    data = request.get_json(silent=True) or {}
+    return jsonify(lists.update_list_item(list_name, item_id, data.get("text", "").strip(), data.get("url", "").strip()))
 
 
 @app.route("/api/lists/<list_name>/items/<int:item_id>/toggle", methods=["PATCH"])
@@ -328,6 +349,25 @@ def api_toggle_list_item(list_name, item_id):
 @require_login
 def api_delete_list_item(list_name, item_id):
     return jsonify(lists.delete_list_item(list_name, item_id))
+
+
+@app.route("/api/stocks")
+@require_login
+def api_stocks():
+    return jsonify(stocks.fetch_quotes())
+
+
+@app.route("/api/stocks", methods=["POST"])
+@require_login
+def api_add_stock():
+    data = request.get_json(silent=True) or {}
+    return jsonify(stocks.add_symbol(data.get("symbol", "")))
+
+
+@app.route("/api/stocks/<symbol>", methods=["DELETE"])
+@require_login
+def api_delete_stock(symbol):
+    return jsonify(stocks.remove_symbol(symbol))
 
 
 @socketio.on("chat_message")
