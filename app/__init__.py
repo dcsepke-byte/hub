@@ -400,6 +400,18 @@ def serve_file(subpath):
     return send_from_directory(Config.UPLOAD_FOLDER, subpath)
 
 
+@app.after_request
+def cache_static(response):
+    if request.path.startswith("/static/") or request.path == "/service-worker.js":
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        response.headers["Vary"] = "Accept-Encoding"
+    elif request.path == "/" or request.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
+
 def create_app():
     return app
 

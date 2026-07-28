@@ -161,41 +161,67 @@ function initSocket() {
 
 function navigate(page, push = true) {
   const target = PAGES[page] ? page : "home";
-  appState.page = target;
-  localStorage.setItem("hub_last_page", target);
-  if (push && location.hash.slice(1) !== target) history.pushState(null, "", `#${target}`);
-  const home = $("#homeBtn");
-  if (home) home.classList.toggle("active", target === "home");
-  $("#bottomNav")?.querySelectorAll("button[data-page]").forEach((btn) => btn.classList.toggle("active", btn.dataset.page === target));
   const content = $("#content");
-  content.innerHTML = "";
-  (PAGES[target] || renderHome)(content);
-  document.title = `HUB — ${target[0].toUpperCase()}${target.slice(1)}`;
+  content.classList.add("page-out");
+  setTimeout(() => {
+    appState.page = target;
+    localStorage.setItem("hub_last_page", target);
+    if (push && location.hash.slice(1) !== target) history.pushState(null, "", `#${target}`);
+    const home = $("#homeBtn");
+    if (home) home.classList.toggle("active", target === "home");
+    $("#bottomNav")?.querySelectorAll("button[data-page]").forEach((btn) => btn.classList.toggle("active", btn.dataset.page === target));
+    content.innerHTML = "";
+    content.classList.remove("page-out");
+    content.classList.add("page-in");
+    (PAGES[target] || renderHome)(content);
+    document.title = `HUB — ${target[0].toUpperCase()}${target.slice(1)}`;
+    requestAnimationFrame(() => setTimeout(() => content.classList.remove("page-in"), 30));
+  }, 160);
 }
 
 async function getJSON(url) {
-  const r = await fetch(url);
-  if (r.status === 401) { window.location.href = "/login"; throw new Error("Nicht eingeloggt"); }
-  if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
-  return r.json();
+  try {
+    const r = await fetch(url);
+    if (r.status === 401) { window.location.href = "/login"; throw new Error("Nicht eingeloggt"); }
+    if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+    return r.json();
+  } catch (e) {
+    if (!navigator.onLine) throw new Error("Du bist offline. Bitte prüfe deine Verbindung.");
+    throw e;
+  }
 }
 
 async function postJSON(url, body) {
-  const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-  if (r.status === 401) { window.location.href = "/login"; return { ok: false }; }
-  return r.json().catch(() => ({ ok: false }));
+  try {
+    const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    if (r.status === 401) { window.location.href = "/login"; return { ok: false }; }
+    return r.json().catch(() => ({ ok: false }));
+  } catch (e) {
+    if (!navigator.onLine) return { ok: false, error: "Offline. Daten werden gespeichert, sobald die Verbindung wieder da ist." };
+    return { ok: false, error: e.message };
+  }
 }
 
 async function patchJSON(url, body) {
-  const r = await fetch(url, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-  if (r.status === 401) { window.location.href = "/login"; return { ok: false }; }
-  return r.json().catch(() => ({ ok: false }));
+  try {
+    const r = await fetch(url, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    if (r.status === 401) { window.location.href = "/login"; return { ok: false }; }
+    return r.json().catch(() => ({ ok: false }));
+  } catch (e) {
+    if (!navigator.onLine) return { ok: false, error: "Offline. Änderung wird später synchronisiert." };
+    return { ok: false, error: e.message };
+  }
 }
 
 async function deleteReq(url) {
-  const r = await fetch(url, { method: "DELETE" });
-  if (r.status === 401) { window.location.href = "/login"; return { ok: false }; }
-  return r.json().catch(() => ({ ok: false }));
+  try {
+    const r = await fetch(url, { method: "DELETE" });
+    if (r.status === 401) { window.location.href = "/login"; return { ok: false }; }
+    return r.json().catch(() => ({ ok: false }));
+  } catch (e) {
+    if (!navigator.onLine) return { ok: false, error: "Offline. Löschung wird später synchronisiert." };
+    return { ok: false, error: e.message };
+  }
 }
 
 function flash(text, type = "ok") {
@@ -209,6 +235,41 @@ function flash(text, type = "ok") {
   toast.style.zIndex = "250";
   document.body.appendChild(toast);
   setTimeout(() => toast.remove(), 2500);
+}
+
+function skeletonCard() { return `<div class="card"><div class="skeleton title"></div><div class="skeleton text"></div><div class="skeleton text" style="width:80%"></div></div>`; }
+function skeletonList(count = 4) { return Array(count).fill(0).map(() => `<div class="task-item"><div class="skeleton circle"></div><div class="skeleton text" style="flex:1"></div></div>`).join(""); }
+function skeletonGrid(n = 4) { return `<div class="grid grid-2">${Array(n).fill(0).map(skeletonCard).join("")}</div>`; }
+
+function initPullToRefresh(callback) {
+  if (window.matchMedia("(pointer: fine)").matches) return;
+  const content = $("#content");
+  if (!content || content.dataset.ptr === "1") return;
+  content.dataset.ptr = "1";
+  let startY = 0, pulling = false;
+  content.classList.add("ptr");
+  const indicator = document.createElement("div");
+  indicator.className = "ptr-indicator"; indicator.textContent = "↓";
+  content.prepend(indicator);
+  content.addEventListener("touchstart", (e) => { if (content.scrollTop <= 2) startY = e.touches[0].clientY; }, { passive: true });
+  content.addEventListener("touchmove", (e) => {
+    const y = e.touches[0].clientY;
+    const delta = y - startY;
+    if (content.scrollTop <= 2 && delta > 0) {
+      pulling = true;
+      content.classList.add("pulling");
+      if (delta > 100) content.classList.add("refreshing");
+    }
+  }, { passive: true });
+  content.addEventListener("touchend", async () => {
+    if (!pulling) return;
+    pulling = false;
+    if (!content.classList.contains("refreshing")) { content.classList.remove("pulling"); return; }
+    indicator.textContent = "↻";
+    try { await callback(); } catch (e) {}
+    content.classList.remove("pulling", "refreshing");
+    indicator.textContent = "↓";
+  }, { passive: true });
 }
 
 function appIcon(id, label) {
@@ -244,24 +305,21 @@ async function renderHome(container) {
     </div>
     <h2 class="page-title">Übersicht</h2>
     <div class="grid grid-2">
-      <div class="card" id="weather-card"><div class="loader"></div></div>
+      <div class="card" id="weather-card">${skeletonCard()}</div>
       <div class="card chat-widget">
         <div class="chat-header"><div class="chat-title">💬 Hermes Chat</div><button class="chat-close">×</button></div>
         <div class="chat-messages" id="chat-box"></div>
         <form class="chat-input" id="chat-form"><input type="text" id="chat-input" placeholder="Frage Hermes..." autocomplete="off"><button type="submit" class="btn-primary">➤</button></form>
       </div>
-      <div class="card" id="calendar-card"><h3>🗓️ Termine heute</h3><div id="today-events" class="loader"></div><button class="btn-secondary" id="add-event-btn" style="margin-top:12px;width:100%">+ Termin</button></div>
-      <div class="card" id="tasks-card"><h3>✅ Heutige To-Do</h3><div class="loader"></div></div>
-      <div class="card" id="stocks-card"><h3>📈 Watchlist</h3><div class="loader"></div></div>
-      <div class="card" id="news-card"><h3>📰 News</h3><div id="news-list" class="loader"></div></div>
+      <div class="card" id="calendar-card"><h3>🗓️ Termine heute</h3><div id="today-events">${skeletonList(3)}</div><button class="btn-secondary" id="add-event-btn" style="margin-top:12px;width:100%">+ Termin</button></div>
+      <div class="card" id="tasks-card"><h3>✅ Heutige To-Do</h3><div class="task-list">${skeletonList(4)}</div></div>
+      <div class="card" id="stocks-card"><h3>📈 Watchlist</h3><div class="task-list">${skeletonList(3)}</div></div>
+      <div class="card" id="news-card"><h3>📰 News</h3><div id="news-list">${skeletonList(3)}</div></div>
     </div>`;
   bindAppClicks();
   initChat();
-  loadWeather();
-  loadTodayTasks();
-  loadTodayEvents();
-  loadNews();
-  loadStocks();
+  await Promise.all([loadWeather(), loadTodayTasks(), loadTodayEvents(), loadNews(), loadStocks()]);
+  initPullToRefresh(() => Promise.all([loadWeather(), loadTodayTasks(), loadTodayEvents(), loadNews(), loadStocks()]));
 }
 
 function initChat() {
@@ -412,6 +470,7 @@ async function renderProjects(container) {
     });
     if (res.ok) { flash("Projekt angelegt"); renderProjects(container); } else flash(res.error || "Fehler", "error");
   });
+  $("#project-grid").innerHTML = skeletonGrid(3);
   try {
     const projects = await getJSON("/api/projects");
     const grid = $("#project-grid");
@@ -428,6 +487,7 @@ async function renderProjects(container) {
       card.querySelector(".del-btn").addEventListener("click", async () => { if (confirm("Projekt wirklich löschen?")) { await deleteReq(`/api/projects/${id}`); flash("Gelöscht"); renderProjects(container); } });
     });
   } catch (e) { $("#project-grid").innerHTML = "<p class='empty-state'>Projekte konnten nicht geladen werden.</p>"; }
+  initPullToRefresh(() => renderProjects(container));
 }
 
 async function editProject(id) {
@@ -484,11 +544,11 @@ async function renderTasks(container) {
     <div class="task-tabs"><button data-tab="tasks" class="active">Aufgaben</button><button data-tab="lists">Listen</button><button data-tab="dashboard">Dashboard</button></div>
     <div id="task-panel">
       <div class="task-filter"><button data-filter="all" class="active">Alle</button><button data-filter="Offen">Offen</button><button data-filter="Erledigt">Erledigt</button><button data-filter="Party Arena">Party Arena</button><button data-filter="KI-Videos">KI-Videos</button><button data-filter="Hochzeit">Hochzeit</button><button data-filter="Server">Server</button></div>
-      <div class="task-list" id="task-list"><div class="loader"></div></div>
+      <div class="task-list" id="task-list">${skeletonList(6)}</div>
     </div>
     <div id="lists-panel" style="display:none">
-      <div class="list-tabs" id="list-tabs"></div>
-      <div id="lists-list" class="task-list"><div class="loader"></div></div>
+      <div class="list-tabs" id="list-tabs">${skeletonList(2)}</div>
+      <div id="lists-list" class="task-list">${skeletonList(4)}</div>
       <form id="list-add-form" class="list-add-form">
         <input type="text" id="list-new-item" placeholder="Neuer Eintrag...">
         <input type="url" id="list-new-url" placeholder="URL (optional)" style="flex:1">
@@ -547,7 +607,7 @@ function dueClass(due) {
 }
 
 async function loadTasks() {
-  const list = $("#task-list"); list.innerHTML = "<div class='loader'></div>";
+  const list = $("#task-list"); if (!list) return;
   try {
     let url = "/api/tasks";
     const knownStatus = ["Offen", "Erledigt", "In Arbeit", "Blockiert"];
@@ -563,7 +623,7 @@ async function loadTasks() {
 async function loadDashboard() {
   const grid = $("#dash-grid");
   if (!grid) return;
-  grid.innerHTML = "<div class='loader'></div>";
+  grid.innerHTML = skeletonGrid(4);
   try {
     const tasks = await getJSON("/api/tasks?status=Offen");
     const total = tasks.length;
@@ -581,7 +641,6 @@ async function loadDashboard() {
 async function loadLists() {
   const tabs = $("#list-tabs"), list = $("#lists-list");
   if (!tabs || !list) return;
-  list.innerHTML = "<div class='loader'></div>";
   try {
     const data = await getJSON("/api/lists");
     const names = Object.keys(data);
@@ -602,6 +661,7 @@ async function loadLists() {
     list.querySelectorAll(".edit-btn").forEach((btn) => btn.addEventListener("click", () => editListItem(btn.dataset.list, parseInt(btn.dataset.id, 10))));
     list.querySelectorAll(".del-btn").forEach((btn) => btn.addEventListener("click", async () => { if (confirm("Eintrag löschen?")) { await fetch(`/api/lists/${encodeURIComponent(btn.dataset.list)}/items/${btn.dataset.id}`, { method: "DELETE" }); loadLists(); } }));
   } catch (e) { list.innerHTML = "<p class='empty-state'>Fehler.</p>"; }
+  initPullToRefresh(() => loadLists());
 }
 
 function listRow(it) {
@@ -680,7 +740,7 @@ async function renderExplorer(container) {
           <button id="view-list">☰ Liste</button>
         </div>
         <div class="explorer-breadcrumb" id="breadcrumb"></div>
-        <div class="explorer-content" id="explorer-content" data-view="grid"><div class="loader"></div></div>
+        <div class="explorer-content" id="explorer-content" data-view="grid">${skeletonGrid(6)}</div>
       </div>
     </div>`;
   $("#back-home")?.addEventListener("click", () => navigate("home"));
@@ -692,6 +752,7 @@ async function renderExplorer(container) {
   $("#view-grid").addEventListener("click", () => { appState.explorerView = "grid"; $("#explorer-content").dataset.view = "grid"; $$("#view-grid,#view-list").forEach((b) => b.classList.toggle("active", b.id === "view-grid")); });
   $("#view-list").addEventListener("click", () => { appState.explorerView = "list"; $("#explorer-content").dataset.view = "list"; $$("#view-grid,#view-list").forEach((b) => b.classList.toggle("active", b.id === "view-list")); });
   loadExplorer();
+  initPullToRefresh(() => loadExplorer());
 }
 
 async function loadExplorer() {
