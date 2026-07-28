@@ -50,6 +50,12 @@ def logout():
     return redirect(url_for("login"))
 
 
+@app.route("/service-worker.js")
+@require_login
+def serve_sw():
+    return send_from_directory(str(BASE_DIR / "static"), "service-worker.js", mimetype="application/javascript")
+
+
 @app.route("/")
 @require_login
 def index():

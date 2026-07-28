@@ -19,14 +19,37 @@ function init() {
   initNav();
   initSearch();
   initQuickAdd();
+  initTheme();
   initSocket();
-  navigate(location.hash.slice(1) || currentPage || "home", false);
+  const start = location.hash.slice(1) || localStorage.getItem('hub_last_page') || currentPage || "home";
+  navigate(start, false);
   window.addEventListener("hashchange", () => navigate(location.hash.slice(1), false));
+  window.addEventListener("popstate", () => {
+    const page = location.hash.slice(1) || localStorage.getItem('hub_last_page') || "home";
+    navigate(page, false);
+  });
 }
 
 function initNav() {
   const home = $("#homeBtn");
   if (home) home.addEventListener("click", (e) => { e.preventDefault(); navigate("home"); });
+  const bottom = $("#bottomNav");
+  if (!bottom) return;
+  bottom.querySelectorAll("button[data-page]").forEach((btn) => {
+    btn.addEventListener("click", () => navigate(btn.dataset.page));
+  });
+  const fab = $("#fab");
+  if (fab) fab.addEventListener("click", () => $("#quickAddModal")?.classList.add("show"));
+}
+
+function initTheme() {
+  const saved = localStorage.getItem("hub_theme");
+  if (saved) document.body.className = saved;
+  $("#themeToggle")?.addEventListener("click", () => {
+    const isLight = document.body.classList.contains("light");
+    document.body.className = isLight ? "dark" : "light";
+    localStorage.setItem("hub_theme", isLight ? "dark" : "light");
+  });
 }
 
 function initSearch() {
@@ -77,7 +100,6 @@ function initQuickAdd() {
   const show = () => modal.classList.add("show");
   const hide = () => modal.classList.remove("show");
   $("#quickAdd")?.addEventListener("click", show);
-  $("#fab")?.addEventListener("click", show);
   $(".close-modal")?.addEventListener("click", hide);
   modal.addEventListener("click", (e) => { if (e.target === modal) hide(); });
   let qtype = "task";
@@ -140,9 +162,11 @@ function initSocket() {
 function navigate(page, push = true) {
   const target = PAGES[page] ? page : "home";
   appState.page = target;
+  localStorage.setItem("hub_last_page", target);
   if (push && location.hash.slice(1) !== target) history.pushState(null, "", `#${target}`);
   const home = $("#homeBtn");
   if (home) home.classList.toggle("active", target === "home");
+  $("#bottomNav")?.querySelectorAll("button[data-page]").forEach((btn) => btn.classList.toggle("active", btn.dataset.page === target));
   const content = $("#content");
   content.innerHTML = "";
   (PAGES[target] || renderHome)(content);
