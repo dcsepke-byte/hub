@@ -13,6 +13,10 @@ function isInputFocused() {
   return active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable);
 }
 
+function isOverlayOpen() {
+  return !!(document.querySelector(".action-sheet-overlay") || document.querySelector(".modal.show") || $("#quickAddModal")?.classList.contains("show"));
+}
+
 function showActionSheet(title, actions) {
   return new Promise((resolve) => {
     const overlay = document.createElement("div");
@@ -35,21 +39,21 @@ function showActionSheet(title, actions) {
       overlay.style.opacity = "0";
       sheet.style.animation = "none";
       sheet.style.transform = "translateY(110%)";
+      document.removeEventListener("keydown", esc);
       setTimeout(() => { overlay.remove(); sheet.remove(); resolve(value); }, 220);
     };
+    const esc = (e) => { if (e.key === "Escape") close(""); };
+    document.addEventListener("keydown", esc);
     sheet.querySelectorAll("button").forEach((btn) => {
       btn.addEventListener("click", () => close(btn.dataset.value));
     });
     overlay.addEventListener("click", () => close(""));
-    document.addEventListener("keydown", function esc(e) {
-      if (e.key === "Escape") { document.removeEventListener("keydown", esc); close(""); }
-    });
   });
 }
 
 function confirmSheet(message) {
   return showActionSheet(message, [
-    { label: "Bestätigen", value: "ok", destructive: true },
+    { label: "Löschen", value: "ok", destructive: true },
     { label: "Abbrechen", value: "", cancel: true },
   ]).then((v) => v === "ok");
 }
@@ -221,6 +225,13 @@ function closeOpenModals() {
 function initShortcuts() {
   document.addEventListener("keydown", (e) => {
     if (isInputFocused()) return;
+    if (isOverlayOpen()) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        closeOpenModals();
+      }
+      return;
+    }
     const key = e.key;
     if (e.metaKey || e.ctrlKey) {
       if (key.toLowerCase() === "k") {
@@ -492,6 +503,14 @@ async function maybeRefreshHome() {
 function startAutoRefresh() {
   if (autoRefreshTimer) clearInterval(autoRefreshTimer);
   autoRefreshTimer = setInterval(maybeRefreshHome, 120000);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") {
+      clearInterval(autoRefreshTimer); autoRefreshTimer = null;
+    } else {
+      if (!autoRefreshTimer) autoRefreshTimer = setInterval(maybeRefreshHome, 120000);
+      maybeRefreshHome();
+    }
+  });
 }
 
 function stopAutoRefresh() {
@@ -1089,7 +1108,7 @@ function renderSettings(container) {
   container.innerHTML = `<div class="back-home"><button class="btn-secondary" id="back-home">← Home</button></div><h2 class="page-title">Settings</h2><div class="grid grid-2"><div class="card"><h3>🎨 Erscheinungsbild</h3><div class="setting-row"><label>Dark Mode</label><input type="checkbox" id="dark-toggle" ${isDark ? "checked" : ""}></div></div><div class="card"><h3>🔌 Integrationen</h3><div class="integration-list"><div class="integration-item ok"><span class="status-dot"></span> Notion</div><div class="integration-item ok"><span class="status-dot"></span> Open-Meteo Wetter</div><div class="integration-item ok"><span class="status-dot"></span> Ollama Cloud KI</div><div class="integration-item gap"><span class="status-dot"></span> Google Calendar (Stufe 2)</div></div></div><div class="card" style="grid-column:1/-1"><h3>🔐 Sicherheit</h3><div class="setting-row"><label>Passwort ändern</label><button class="btn-secondary" id="toggle-pw">Ändern</button></div><form id="pw-form" style="display:none; margin-top:10px"><input type="password" id="current-pw" placeholder="Aktuelles Passwort" required><input type="password" id="new-pw" placeholder="Neues Passwort" required><button type="submit" class="btn-primary">Speichern</button><pre id="pw-result" style="margin-top:10px; word-break:break-all; font-size:12px; color:var(--text-tertiary)"></pre></form></div></div>`;
   $("#back-home")?.addEventListener("click", () => navigate("home"));
   const toggle = $("#dark-toggle");
-  toggle.addEventListener("change", () => { document.body.classList.toggle("dark", toggle.checked); document.body.classList.toggle("light", !toggle.checked); localStorage.setItem("hub-theme", toggle.checked ? "dark" : "light"); });
+  toggle.addEventListener("change", () => { document.body.classList.toggle("dark", toggle.checked); document.body.classList.toggle("light", !toggle.checked); localStorage.setItem("hub_theme", toggle.checked ? "dark" : "light"); });
   $("#toggle-pw")?.addEventListener("click", () => { const form = $("#pw-form"); form.style.display = form.style.display === "none" ? "block" : "none"; });
   $("#pw-form")?.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -1101,7 +1120,7 @@ function renderSettings(container) {
 }
 
 (function restoreTheme() {
-  const saved = localStorage.getItem("hub-theme");
+  const saved = localStorage.getItem("hub_theme");
   if (saved === "light") document.body.classList.replace("dark", "light");
 })();
 
