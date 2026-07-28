@@ -2,9 +2,66 @@ const currentPage = "{{ page }}";
 let appState = { page: currentPage, projectFilter: null, taskFilter: "all", path: "", projectDetail: null, activeList: "Einkauf", explorerView: "grid" };
 let socket = null;
 let chatHistory = [];
+let autoRefreshTimer = null;
+let quickAddModal = null;
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => document.querySelectorAll(sel);
+
+function isInputFocused() {
+  const active = document.activeElement;
+  return active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable);
+}
+
+function showActionSheet(title, actions) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "action-sheet-overlay";
+    const sheet = document.createElement("div");
+    sheet.className = "action-sheet";
+    let html = "";
+    if (title) html += `<div class="sheet-title">${escapeHtml(title)}</div>`;
+    html += `<div class="sheet-actions">`;
+    actions.forEach((a) => {
+      const cls = a.destructive ? "destructive" : (a.cancel ? "cancel" : "");
+      html += `<button data-value="${a.value || ''}" class="${cls}">${escapeHtml(a.label)}</button>`;
+    });
+    html += `</div>`;
+    sheet.innerHTML = html;
+    document.body.appendChild(overlay);
+    document.body.appendChild(sheet);
+    const close = (value) => {
+      overlay.style.animation = "none";
+      overlay.style.opacity = "0";
+      sheet.style.animation = "none";
+      sheet.style.transform = "translateY(110%)";
+      setTimeout(() => { overlay.remove(); sheet.remove(); resolve(value); }, 220);
+    };
+    sheet.querySelectorAll("button").forEach((btn) => {
+      btn.addEventListener("click", () => close(btn.dataset.value));
+    });
+    overlay.addEventListener("click", () => close(""));
+    document.addEventListener("keydown", function esc(e) {
+      if (e.key === "Escape") { document.removeEventListener("keydown", esc); close(""); }
+    });
+  });
+}
+
+function confirmSheet(message) {
+  return showActionSheet(message, [
+    { label: "Bestätigen", value: "ok", destructive: true },
+    { label: "Abbrechen", value: "", cancel: true },
+  ]).then((v) => v === "ok");
+}
+
+function promptWithFallback(message, def = "") {
+  try {
+    const v = prompt(message, def);
+    return v === null ? null : v.trim();
+  } catch (e) {
+    return null;
+  }
+}
 
 const PAGES = {
   home: renderHome,
@@ -20,13 +77,18 @@ function init() {
   initSearch();
   initQuickAdd();
   initTheme();
+  initShortcuts();
   initSocket();
+  startAutoRefresh();
   const start = location.hash.slice(1) || localStorage.getItem('hub_last_page') || currentPage || "home";
   navigate(start, false);
   window.addEventListener("hashchange", () => navigate(location.hash.slice(1), false));
   window.addEventListener("popstate", () => {
     const page = location.hash.slice(1) || localStorage.getItem('hub_last_page') || "home";
     navigate(page, false);
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") maybeRefreshHome();
   });
 }
 
@@ -95,13 +157,13 @@ function renderSearchResults(data) {
 }
 
 function initQuickAdd() {
-  const modal = $("#quickAddModal");
-  if (!modal) return;
-  const show = () => modal.classList.add("show");
-  const hide = () => modal.classList.remove("show");
+  quickAddModal = $("#quickAddModal");
+  if (!quickAddModal) return;
+  const show = () => quickAddModal.classList.add("show");
+  const hide = () => quickAddModal.classList.remove("show");
   $("#quickAdd")?.addEventListener("click", show);
   $(".close-modal")?.addEventListener("click", hide);
-  modal.addEventListener("click", (e) => { if (e.target === modal) hide(); });
+  quickAddModal.addEventListener("click", (e) => { if (e.target === quickAddModal) hide(); });
   let qtype = "task";
   $$(".quick-type").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -142,6 +204,47 @@ function initQuickAdd() {
     $("#quickForm").reset();
     if (appState.page === "tasks") renderTasks($("#content"));
     if (appState.page === "explorer") renderExplorer($("#content"));
+  });
+}
+
+function closeOpenModals() {
+  if (quickAddModal) quickAddModal.classList.remove("show");
+  $(".lightbox")?.remove();
+  const chat = $(".chat-widget");
+  if (chat) chat.classList.remove("expanded");
+  const search = $("#searchResults");
+  if (search) search.classList.remove("show");
+  const modals = document.querySelectorAll(".modal.show");
+  modals.forEach((m) => m.classList.remove("show"));
+}
+
+function initShortcuts() {
+  document.addEventListener("keydown", (e) => {
+    if (isInputFocused()) return;
+    const key = e.key;
+    if (e.metaKey || e.ctrlKey) {
+      if (key.toLowerCase() === "k") {
+        e.preventDefault();
+        $("#globalSearch")?.focus();
+        return;
+      }
+    }
+    if (key === "Escape") {
+      e.preventDefault();
+      closeOpenModals();
+      return;
+    }
+    if (key.toLowerCase() === "n") {
+      e.preventDefault();
+      quickAddModal?.classList.add("show");
+      return;
+    }
+    if (["1", "2", "3", "4", "5"].includes(key)) {
+      e.preventDefault();
+      const map = { 1: "home", 2: "projects", 3: "tasks", 4: "explorer", 5: "settings" };
+      navigate(map[key]);
+      return;
+    }
   });
 }
 
@@ -303,6 +406,11 @@ async function renderHome(container) {
       ${appIcon("chat", "Hermes")}
       ${appIcon("settings", "Settings")}
     </div>
+    <div id="suggestion-chip" class="suggestion-chip" style="opacity:0;transform:translateY(-12px);transition:opacity 0.5s ease, transform 0.5s ease;cursor:pointer;">
+      <div class="icon">⚡</div>
+      <div class="text" id="chip-text">Lade Tasks...</div>
+      <div class="cta">Tasks →</div>
+    </div>
     <h2 class="page-title">Übersicht</h2>
     <div class="grid grid-2">
       <div class="card" id="weather-card">${skeletonCard()}</div>
@@ -311,15 +419,83 @@ async function renderHome(container) {
         <div class="chat-messages" id="chat-box"></div>
         <form class="chat-input" id="chat-form"><input type="text" id="chat-input" placeholder="Frage Hermes..." autocomplete="off"><button type="submit" class="btn-primary">➤</button></form>
       </div>
-      <div class="card" id="calendar-card"><h3>🗓️ Termine heute</h3><div id="today-events">${skeletonList(3)}</div><button class="btn-secondary" id="add-event-btn" style="margin-top:12px;width:100%">+ Termin</button></div>
+      <div class="card" id="week-view-card">
+        <h3>🗓️ Wochenübersicht</h3>
+        <div id="week-title" class="page-subtitle"></div>
+        <div class="week-view" id="week-view">${skeletonList(7)}</div>
+        <button class="btn-secondary" id="add-event-btn" style="margin-top:12px;width:100%">+ Termin</button>
+      </div>
+      <div class="card" id="calendar-card"><h3>Termine heute</h3><div id="today-events">${skeletonList(3)}</div></div>
       <div class="card" id="tasks-card"><h3>✅ Heutige To-Do</h3><div class="task-list">${skeletonList(4)}</div></div>
       <div class="card" id="stocks-card"><h3>📈 Watchlist</h3><div class="task-list">${skeletonList(3)}</div></div>
       <div class="card" id="news-card"><h3>📰 News</h3><div id="news-list">${skeletonList(3)}</div></div>
     </div>`;
   bindAppClicks();
   initChat();
-  await Promise.all([loadWeather(), loadTodayTasks(), loadTodayEvents(), loadNews(), loadStocks()]);
-  initPullToRefresh(() => Promise.all([loadWeather(), loadTodayTasks(), loadTodayEvents(), loadNews(), loadStocks()]));
+  bindSuggestionChip();
+  await Promise.all([loadWeather(), loadTodayTasks(), loadTodayEvents(), loadNews(), loadStocks(), loadCalendarWeek()]);
+  refreshSuggestionChip();
+  initPullToRefresh(() => Promise.all([loadWeather(), loadTodayTasks(), loadTodayEvents(), loadNews(), loadStocks(), loadCalendarWeek()]).then(refreshSuggestionChip));
+}
+
+function statusBadgeClass(status) {
+  const s = (status || "").toLowerCase();
+  if (s.includes("aktiv")) return "active";
+  if (s.includes("arbeit") || s.includes("beendet")) return "done";
+  if (s.includes("plan") || s.includes("vorbereitung")) return "planning";
+  return "";
+}
+
+function bindSuggestionChip() {
+  const chip = $("#suggestion-chip");
+  if (!chip) return;
+  chip.addEventListener("click", () => navigate("tasks"));
+}
+
+async function refreshSuggestionChip() {
+  const chip = $("#suggestion-chip");
+  if (!chip) return;
+  try {
+    const tasks = await getJSON("/api/tasks?status=Offen");
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const todayCount = tasks.filter((t) => {
+      if (!t.due) return false;
+      const d = new Date(t.due); d.setHours(0, 0, 0, 0);
+      return d.getTime() === today.getTime();
+    }).length;
+    const overdueCount = tasks.filter((t) => {
+      if (!t.due) return false;
+      const d = new Date(t.due); d.setHours(0, 0, 0, 0);
+      return d.getTime() < today.getTime();
+    }).length;
+    let text = "";
+    if (overdueCount > 0) text = `${overdueCount} Task${overdueCount === 1 ? "" : "s"} überfällig`;
+    else if (todayCount > 0) text = `${todayCount} Task${todayCount === 1 ? "" : "s"} heute fällig`;
+    else text = `${tasks.length} offene Task${tasks.length === 1 ? "" : "s"}`;
+    $("#chip-text").textContent = text;
+    chip.style.opacity = "1";
+    chip.style.transform = "translateY(0)";
+  } catch (e) {
+    chip.style.opacity = "1";
+    chip.style.transform = "translateY(0)";
+    $("#chip-text").textContent = "Tasks anzeigen";
+  }
+}
+
+async function maybeRefreshHome() {
+  if (appState.page !== "home") return;
+  if (document.visibilityState !== "visible") return;
+  if (isInputFocused()) return;
+  await Promise.all([loadWeather(), loadTodayTasks(), loadTodayEvents(), loadNews(), loadStocks(), loadCalendarWeek(), refreshSuggestionChip()]);
+}
+
+function startAutoRefresh() {
+  if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+  autoRefreshTimer = setInterval(maybeRefreshHome, 120000);
+}
+
+function stopAutoRefresh() {
+  if (autoRefreshTimer) { clearInterval(autoRefreshTimer); autoRefreshTimer = null; }
 }
 
 function initChat() {
@@ -345,7 +521,6 @@ function initChat() {
   const box = $("#chat-box");
   chatHistory.slice(-30).forEach((m) => appendMessage(box, m));
   $("#chat-input")?.addEventListener("focus", () => widget.classList.add("expanded"));
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") widget.classList.remove("expanded"); });
 }
 
 function appendMessage(box, msg) {
@@ -375,11 +550,13 @@ async function loadTodayEvents() {
     const events = data.today || [];
     el.innerHTML = events.length ? events.map((e) => eventRow(e, true)).join("") : "<p class='empty-state'>Keine Termine heute.</p>";
   } catch (e) { el.classList.remove("loader"); el.innerHTML = "<p class='empty-state'>Fehler.</p>"; }
-  $("#add-event-btn")?.addEventListener("click", () => {
-    const title = prompt("Titel:"); if (!title) return;
-    const time = prompt("Uhrzeit (HH:MM):"); if (!time) return;
+  $("#add-event-btn")?.addEventListener("click", async () => {
+    const title = promptWithFallback("Titel:"); if (!title) return;
+    const time = promptWithFallback("Uhrzeit (HH:MM):"); if (!time) return;
     const today = new Date().toISOString().slice(0, 10);
-    postJSON("/api/calendar", { title, start: `${today}T${time}:00` }).then((r) => { if (r.ok) { flash("Termin hinzugefügt"); loadTodayEvents(); } else flash("Fehler", "error"); });
+    const res = await postJSON("/api/calendar", { title, start: `${today}T${time}:00` });
+    if (res.ok) { flash("Termin hinzugefügt"); loadTodayEvents(); }
+    else flash("Fehler", "error");
   });
 }
 
@@ -387,6 +564,49 @@ function eventRow(e, showNav = false) {
   const start = new Date(e.start);
   const navUrl = e.location ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(e.location)}` : null;
   return `<div class="event-row"><div class="event-title">${e.title}</div><div class="event-date">${start.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'})}${showNav && navUrl ? ` <a class="event-nav" href="${navUrl}" target="_blank">🗺️</a>` : ""}</div></div>`;
+}
+
+function renderCalendarWeek(container, days, events, reference) {
+  const today = new Date().toISOString().slice(0, 10);
+  const eventDates = new Set(events.map((e) => e.start ? new Date(e.start).toISOString().slice(0, 10) : "").filter(Boolean));
+  const names = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+  const html = days.map((d, i) => {
+    const isToday = d.date === today;
+    const hasEvents = eventDates.has(d.date);
+    const dt = new Date(d.date);
+    return `<div class="week-day ${isToday ? 'today' : ''}" data-date="${d.date}">
+      <div class="day-name">${names[i]}</div>
+      <div class="day-num">${dt.getDate()}</div>
+      ${hasEvents ? '<div class="dot"></div>' : '<div style="height:5px"></div>'}
+    </div>`;
+  }).join("");
+  container.innerHTML = html;
+}
+
+async function loadCalendarWeek(offset = 0) {
+  const container = $("#week-view");
+  if (!container) return;
+  try {
+    const data = await getJSON(`/api/calendar/week?offset=${offset}`);
+    const reference = new Date();
+    if (offset !== 0) reference.setDate(reference.getDate() + offset * 7);
+    renderCalendarWeek(container, data.days, data.events || [], reference);
+    const title = $("#week-title");
+    if (title) title.textContent = `KW ${getWeek(reference)} — ${formatDate(data.days[0].date)} bis ${formatDate(data.days[6].date)}`;
+  } catch (e) { container.innerHTML = "<p class='empty-state'>Kalender nicht verfügbar.</p>"; }
+}
+
+function getWeek(d) {
+  const date = new Date(d);
+  date.setHours(0, 0, 0, 0);
+  date.setDate(date.getDate() + 3 - (date.getDay() + 6) % 7);
+  const week1 = new Date(date.getFullYear(), 0, 4);
+  return 1 + Math.round(((date - week1) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
+}
+
+function formatDate(iso) {
+  const d = new Date(iso);
+  return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
 }
 
 async function loadNews() {
@@ -419,10 +639,10 @@ async function loadStocks() {
     el.querySelectorAll(".stock-card").forEach((card) => {
       card.addEventListener("contextmenu", async (e) => {
         e.preventDefault();
-        if (confirm(`${card.querySelector(".stock-symbol").textContent} entfernen?`)) {
-          await deleteReq(`/api/stocks/${card.querySelector(".stock-symbol").textContent}`);
-          loadStocks();
-        }
+        const ok = await confirmSheet(`${card.querySelector(".stock-symbol").textContent} entfernen?`);
+        if (!ok) return;
+        await deleteReq(`/api/stocks/${card.querySelector(".stock-symbol").textContent}`);
+        loadStocks();
       });
     });
   } catch (e) { el.classList.remove("loader"); el.innerHTML = "<h3>📈 Watchlist</h3><p class='empty-state'>Fehler.</p>"; }
@@ -470,21 +690,37 @@ async function renderProjects(container) {
     });
     if (res.ok) { flash("Projekt angelegt"); renderProjects(container); } else flash(res.error || "Fehler", "error");
   });
-  $("#project-grid").innerHTML = skeletonGrid(3);
+  const grid = $("#project-grid");
+  grid.innerHTML = skeletonGrid(3);
   try {
     const projects = await getJSON("/api/projects");
-    const grid = $("#project-grid");
-    grid.innerHTML = projects.map((p) => `
-      <div class="project-card" data-id="${p.id}">
-        <div class="header"><div class="icon" style="background:${p.color}22">${p.icon}</div><div><h4>${p.name}</h4><div class="status">${p.status}</div></div></div>
-        <div class="tasks">${p.tasks} offene Task${p.tasks === 1 ? "" : "s"}</div>
-        <div class="project-actions"><button class="open-btn">Öffnen</button><button class="edit-btn">Bearbeiten</button><button class="danger del-btn">Löschen</button></div>
-      </div>`).join("");
+    grid.innerHTML = projects.map((p) => {
+      const total = p.total_tasks || p.tasks || 0;
+      const completed = p.completed_tasks || 0;
+      const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+      return `
+        <div class="project-card" data-id="${p.id}">
+          <div class="header"><div class="icon" style="background:${p.color}22">${p.icon}</div>
+            <div class="project-meta">
+              <div style="display:flex;align-items:center;gap:8px"><h4>${p.name}</h4><span class="badge ${statusBadgeClass(p.status)}">${p.status}</span></div>
+              <div class="tasks">${completed}/${total} erledigt · ${p.tasks} offen</div>
+            </div>
+          </div>
+          <div class="progress-wrap"><div class="progress-bar"><div style="width:${pct}%"></div></div><div class="progress-text">${pct}% abgeschlossen</div></div>
+          <div class="project-actions"><button class="open-btn">Öffnen</button><button class="edit-btn">Bearbeiten</button><button class="danger del-btn">Löschen</button></div>
+        </div>`;
+    }).join("");
     $$(".project-card").forEach((card) => {
       const id = card.dataset.id;
       card.querySelector(".open-btn").addEventListener("click", () => { appState.projectDetail = id; navigate("project"); });
       card.querySelector(".edit-btn").addEventListener("click", () => editProject(id));
-      card.querySelector(".del-btn").addEventListener("click", async () => { if (confirm("Projekt wirklich löschen?")) { await deleteReq(`/api/projects/${id}`); flash("Gelöscht"); renderProjects(container); } });
+      card.querySelector(".del-btn").addEventListener("click", async () => {
+        const ok = await confirmSheet("Projekt wirklich löschen?");
+        if (!ok) return;
+        await deleteReq(`/api/projects/${id}`);
+        flash("Gelöscht");
+        renderProjects(container);
+      });
     });
   } catch (e) { $("#project-grid").innerHTML = "<p class='empty-state'>Projekte konnten nicht geladen werden.</p>"; }
   initPullToRefresh(() => renderProjects(container));
@@ -647,8 +883,10 @@ async function loadLists() {
     appState.activeList = appState.activeList || names[0];
     tabs.innerHTML = names.map((n) => `<button class="list-tab ${n === appState.activeList ? 'active' : ''}" data-list="${n}">${n}${n !== "Einkauf" && n !== "Filme" && n !== "Geschenke" && n !== "Ideen" && n !== "Wünsche" ? ' ×' : ''}</button>`).join("");
     $$("#list-tabs button").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        if (btn.textContent.includes("×") && confirm(`Liste "${btn.dataset.list}" löschen?`)) {
+      btn.addEventListener("click", async () => {
+        if (btn.textContent.includes("×")) {
+          const ok = await confirmSheet(`Liste "${btn.dataset.list}" löschen?`);
+          if (!ok) return;
           deleteReq(`/api/lists/${encodeURIComponent(btn.dataset.list)}`).then(loadLists);
           return;
         }
@@ -659,7 +897,12 @@ async function loadLists() {
     list.innerHTML = items.length ? items.map((it) => listRow(it)).join("") : "<p class='empty-state'>Liste leer.</p>";
     list.querySelectorAll("input[type=checkbox]").forEach((box) => box.addEventListener("change", async () => { await patchJSON(`/api/lists/${encodeURIComponent(box.dataset.list)}/items/${box.dataset.id}/toggle`, {}); loadLists(); }));
     list.querySelectorAll(".edit-btn").forEach((btn) => btn.addEventListener("click", () => editListItem(btn.dataset.list, parseInt(btn.dataset.id, 10))));
-    list.querySelectorAll(".del-btn").forEach((btn) => btn.addEventListener("click", async () => { if (confirm("Eintrag löschen?")) { await fetch(`/api/lists/${encodeURIComponent(btn.dataset.list)}/items/${btn.dataset.id}`, { method: "DELETE" }); loadLists(); } }));
+    list.querySelectorAll(".del-btn").forEach((btn) => btn.addEventListener("click", async () => {
+      const ok = await confirmSheet("Eintrag löschen?");
+      if (!ok) return;
+      await fetch(`/api/lists/${encodeURIComponent(btn.dataset.list)}/items/${btn.dataset.id}`, { method: "DELETE" });
+      loadLists();
+    }));
   } catch (e) { list.innerHTML = "<p class='empty-state'>Fehler.</p>"; }
   initPullToRefresh(() => loadLists());
 }
@@ -676,9 +919,9 @@ async function editListItem(listName, id) {
   const data = await getJSON("/api/lists");
   const item = data[listName]?.find((i) => i.id === id);
   if (!item) return;
-  const text = prompt("Text:", item.text);
+  const text = promptWithFallback("Text:", item.text);
   if (text === null) return;
-  const url = prompt("URL:", item.url || "");
+  const url = promptWithFallback("URL:", item.url || "");
   if (url === null) return;
   const res = await patchJSON(`/api/lists/${encodeURIComponent(listName)}/items/${id}`, { text: text.trim(), url: url.trim() });
   flash(res.ok ? "Gespeichert" : "Fehler", res.ok ? "ok" : "error");
@@ -747,7 +990,12 @@ async function renderExplorer(container) {
   $("#up-btn").addEventListener("click", () => { appState.path = appState.path.split("/").slice(0, -1).join("/"); appState.selectedPath = null; loadExplorer(); });
   $("#new-folder-btn").addEventListener("click", () => { const name = prompt("Ordnername:"); if (name) postJSON("/api/explorer/folder", { path: appState.path || "", name }).then(() => loadExplorer()); });
   $("#rename-btn").addEventListener("click", () => { if (!appState.selectedPath) return flash("Datei wählen", "error"); const name = prompt("Neuer Name:"); if (name) postJSON("/api/explorer/rename", { path: appState.selectedPath, name }).then(() => { appState.selectedPath = null; loadExplorer(); }); });
-  $("#delete-btn").addEventListener("click", () => { if (!appState.selectedPath) return flash("Datei wählen", "error"); if (confirm("Wirklich löschen?")) postJSON("/api/explorer/delete", { path: appState.selectedPath }).then(() => { appState.selectedPath = null; loadExplorer(); }); });
+  $("#delete-btn").addEventListener("click", async () => {
+    if (!appState.selectedPath) return flash("Datei wählen", "error");
+    const ok = await confirmSheet("Wirklich löschen?");
+    if (!ok) return;
+    postJSON("/api/explorer/delete", { path: appState.selectedPath }).then(() => { appState.selectedPath = null; loadExplorer(); });
+  });
   $("#explorer-upload").addEventListener("change", async (e) => { for (const file of e.target.files) await uploadFile(file); e.target.value = ""; loadExplorer(); });
   $("#view-grid").addEventListener("click", () => { appState.explorerView = "grid"; $("#explorer-content").dataset.view = "grid"; $$("#view-grid,#view-list").forEach((b) => b.classList.toggle("active", b.id === "view-grid")); });
   $("#view-list").addEventListener("click", () => { appState.explorerView = "list"; $("#explorer-content").dataset.view = "list"; $$("#view-grid,#view-list").forEach((b) => b.classList.toggle("active", b.id === "view-list")); });

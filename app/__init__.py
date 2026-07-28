@@ -238,12 +238,17 @@ def api_change_password():
 def api_projects():
     projects_data = projects_module.list_projects()
     try:
-        tasks = notion.get_tasks(status="Offen", limit=100)
+        all_tasks = notion.get_tasks(status=None, limit=500)
         for p in projects_data:
-            p["tasks"] = sum(1 for t in tasks if t.get("project") == p["name"])
+            project_tasks = [t for t in all_tasks if t.get("project") == p["name"]]
+            p["total_tasks"] = len(project_tasks)
+            p["completed_tasks"] = sum(1 for t in project_tasks if t.get("status") == "Erledigt")
+            p["tasks"] = sum(1 for t in project_tasks if t.get("status") != "Erledigt")
             p["links"] = p.get("links", [])
     except Exception:
         for p in projects_data:
+            p["total_tasks"] = 0
+            p["completed_tasks"] = 0
             p["tasks"] = 0
             p["links"] = p.get("links", [])
     return jsonify(projects_data)
@@ -286,6 +291,24 @@ def api_project_detail(project_id):
     project["tasks"] = notion.get_tasks(filter_project=project["name"], status="Offen")
     project["events"] = calendar.upcoming_events(days=14, limit=5)
     return jsonify(project)
+
+
+@app.route("/api/calendar/week")
+@require_login
+def api_calendar_week():
+    offset = request.args.get("offset", "0").strip()
+    try:
+        offset_weeks = int(offset)
+    except ValueError:
+        offset_weeks = 0
+    reference = datetime.now() + timedelta(weeks=offset_weeks)
+    return jsonify({
+        "days": [{
+            "date": (reference - timedelta(days=reference.weekday()) + timedelta(days=i)).strftime("%Y-%m-%d"),
+            "events": [],
+        } for i in range(7)],
+        "events": calendar.week_events(reference),
+    })
 
 
 @app.route("/api/calendar")

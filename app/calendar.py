@@ -54,6 +54,25 @@ def upcoming_events(days: int = 7, limit: int = 10) -> List[Dict]:
     return sorted(matches, key=lambda x: x.get("start", ""))[:limit]
 
 
+def week_events(reference: datetime = None) -> List[Dict]:
+    events = load_events()
+    ref = reference or datetime.now()
+    monday = ref - timedelta(days=ref.weekday())
+    week_days = [(monday + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(7)]
+    matches = []
+    for e in events:
+        start = e.get("start", "")
+        if not start:
+            continue
+        try:
+            day = datetime.fromisoformat(start).strftime("%Y-%m-%d")
+        except Exception:
+            continue
+        if day in week_days:
+            matches.append(e)
+    return sorted(matches, key=lambda x: x.get("start", ""))
+
+
 def add_event(title: str, start: str, duration_minutes: int = 60, project: str = "", location: str = "") -> Dict:
     events = load_events()
     events.append({
