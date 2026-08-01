@@ -80,6 +80,12 @@ def explorer_page():
     return render_template("index.html", page="explorer")
 
 
+@app.route("/bangkok")
+@require_login
+def bangkok_map():
+    return send_from_directory(str(BASE_DIR / "static"), "bangkok/map.html")
+
+
 @app.route("/settings")
 @require_login
 def settings():

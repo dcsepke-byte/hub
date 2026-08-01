@@ -396,6 +396,7 @@ function bindAppClicks() {
       const id = el.dataset.app;
       if (id === "party-arena") window.open("https://performer-lang-governmental-uploaded.trycloudflare.com", "_blank");
       else if (id === "piano-coach") window.open("https://coach.danny-csepke.de", "_blank");
+      else if (id === "bangkok") window.open("/bangkok", "_blank");
       else if (id === "projects") navigate("projects");
       else if (id === "todo") navigate("tasks");
       else if (id === "explorer") navigate("explorer");
@@ -411,6 +412,7 @@ async function renderHome(container) {
     <div class="app-grid">
       ${appIcon("party-arena", "Party Arena")}
       ${appIcon("piano-coach", "Klavier")}
+      ${appIcon("bangkok", "Bangkok")}
       ${appIcon("projects", "Projekte")}
       ${appIcon("todo", "To-Do")}
       ${appIcon("explorer", "Explorer")}

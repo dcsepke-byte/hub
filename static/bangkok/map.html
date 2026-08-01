@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Bangkok Reise Guide — Karte</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+:root {
+  --bg:#0f1117; --card:#1a1c25; --border:#2a2d3a; --gold:#e8b04b;
+  --text:#e4e6eb; --muted:#9ca3af; --accent:#7ec8e3;
+}
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg); color: var(--text); line-height:1.5;
+  overflow-x:hidden;
+}
+header {
+  position: sticky; top:0; z-index:1000;
+  background: linear-gradient(135deg,#1a1c25,#252836);
+  padding: 14px 16px; border-bottom:2px solid var(--gold);
+  display:flex; align-items:center; gap:12px;
+}
+header .back { color:var(--accent); text-decoration:none; font-size:1.2em; font-weight:600; padding:4px 8px; }
+header h1 { font-size:1.05em; color:var(--gold); flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header .badge { font-size:0.7em; background:#252836; border:1px solid var(--border); padding:3px 8px; border-radius:20px; color:var(--muted); }
+
+#map { height: 52vh; width:100%; background:#14161f; z-index:1; }
+.leaflet-container { font-family: inherit; }
+
+/* Filter bar */
+.filters {
+  display:flex; gap:8px; overflow-x:auto; padding:12px 16px;
+  background:var(--card); border-bottom:1px solid var(--border);
+  -webkit-overflow-scrolling:touch; scrollbar-width:none;
+}
+.filters::-webkit-scrollbar { display:none; }
+.filter-chip {
+  flex-shrink:0; padding:7px 14px; border-radius:20px; cursor:pointer;
+  background:#252836; border:1px solid var(--border); color:var(--muted);
+  font-size:0.8em; white-space:nowrap; transition:all .15s;
+}
+.filter-chip.active { background:var(--gold); color:#1a1c25; border-color:var(--gold); font-weight:600; }
+
+/* Legend */
+.legend-wrap { padding:16px; max-width:900px; margin:0 auto; }
+.legend-title { font-size:1.1em; color:var(--gold); margin-bottom:12px; font-weight:600; }
+.legend-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:12px; }
+.legend-item {
+  background:var(--card); border:1px solid var(--border); border-radius:12px;
+  overflow:hidden; cursor:pointer; transition:transform .15s, box-shadow .15s;
+}
+.legend-item:hover { transform:translateY(-2px); box-shadow:0 4px 16px rgba(0,0,0,.4); }
+.legend-item .num {
+  position:absolute; top:8px; left:8px; z-index:2;
+  background:var(--gold); color:#1a1c25; font-weight:700; font-size:0.8em;
+  width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  border:2px solid #fff;
+}
+.legend-item .img { position:relative; width:100%; height:90px; background:#1f2230; }
+.legend-item .img img { width:100%; height:100%; object-fit:cover; display:block; }
+.legend-item .img .noimg { display:flex; align-items:center; justify-content:center; height:100%; font-size:2em; }
+.legend-item .info { padding:8px 10px; }
+.legend-item .name { font-size:0.82em; font-weight:600; margin-bottom:2px; display:flex; align-items:center; gap:4px; }
+.legend-item .cat { font-size:0.7em; color:var(--muted); }
+
+/* Popup */
+.leaflet-popup-content-wrapper { background:var(--card); color:var(--text); border-radius:12px; }
+.leaflet-popup-content { margin:0; width:240px !important; }
+.popup-head { padding:10px 12px; border-bottom:1px solid var(--border); font-weight:600; font-size:0.95em; display:flex; align-items:center; gap:6px; }
+.popup-body { padding:10px 12px; font-size:0.85em; color:var(--muted); }
+.popup-body .cat-tag { display:inline-block; margin-bottom:6px; padding:2px 8px; border-radius:10px; font-size:0.7em; font-weight:600; }
+.popup-img { width:100%; height:100px; object-fit:cover; display:block; border-radius:8px 8px 0 0; }
+
+/* Custom numbered markers */
+.poi-marker {
+  background:var(--gold); color:#1a1c25; font-weight:700; font-size:0.8em;
+  width:26px; height:26px; border-radius:50%; border:2px solid #fff;
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:0 2px 6px rgba(0,0,0,.5);
+}
+.poi-marker.hotel { background:#4ecdc4; color:#0f1117; font-size:0.75em; }
+.poi-marker.mall { background:#7ec8e3; }
+.poi-marker.temple { background:#e8a05a; }
+.poi-marker.food { background:#e87a5a; }
+.poi-marker.market { background:#e8d44b; color:#0f1117; }
+.poi-marker.park { background:#6ec6a2; }
+.poi-marker.night { background:#b98ce8; }
+.poi-marker.boat { background:#5ac8e8; }
+
+/* Line legend */
+.lines-legend { margin-top:16px; padding:12px; background:var(--card); border:1px solid var(--border); border-radius:12px; }
+.lines-legend h3 { font-size:0.9em; color:var(--gold); margin-bottom:8px; }
+.lines-legend .line-row { display:flex; align-items:center; gap:8px; padding:4px 0; font-size:0.8em; }
+.line-swatch { width:26px; height:5px; border-radius:3px; flex-shrink:0; }
+
+/* Practical info */
+.practical { margin-top:16px; }
+.practical .info-box { background:#1e2030; border-left:3px solid var(--accent); padding:12px 15px; border-radius:0 8px 8px 0; margin:8px 0; font-size:0.85em; }
+.practical .warn-box { background:#2a1a1a; border-left:3px solid #e8554b; padding:12px 15px; border-radius:0 8px 8px 0; margin:8px 0; font-size:0.85em; }
+
+footer { text-align:center; padding:20px; color:var(--muted); font-size:0.75em; }
+a { color:var(--accent); }
+</style>
+</head>
+<body>
+
+<header>
+  <a class="back" href="/">←</a>
+  <h1>🗺️ Bangkok Reise Guide</h1>
+  <span class="badge">28.07.–09.08.2026</span>
+</header>
+
+<div id="map"></div>
+
+<div class="filters" id="filters"></div>
+
+<div class="legend-wrap">
+  <div class="legend-title">📍 Sehenswürdigkeiten (zum Karten-Zoom klicken)</div>
+  <div class="legend-grid" id="legendGrid"></div>
+
+  <div class="lines-legend">
+    <h3>🚇 ÖPNV Linien</h3>
+    <div id="linesList"></div>
+  </div>
+
+  <div class="practical">
+    <div class="legend-title">💡 Praktisches</div>
+    <div class="info-box">
+      <b>BTS (Skytrain):</b> Ticket 16–65 THB · Rabbit Card an jeder Station<br>
+      <b>MRT (U-Bahn):</b> Ticket 17–43 THB · gleiche Karte nicht kompatibel<br>
+      <b>Boot:</b> Chao Phraya Express 15–30 THB · Orange Flag für Touristen<br>
+      <b>Grab:</b> App wie Uber — beste Wahl für Taxis
+    </div>
+    <div class="warn-box">
+      ⚠️ <b>Geldautomat:</b> 220 THB Gebühr pro Abhebung → einmal mehr abheben!<br>
+      ⚠️ <b>NIE</b> „Währungsumrechnung in Euro" am Automaten bestätigen!
+    </div>
+  </div>
+</div>
+
+<footer>Erstellt von Hermes · Stand 31.07.2026 · Koordinaten via OpenStreetMap</footer>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const DATA = {"pois": [{"id": "HOTEL", "name": "Holiday Inn Bangkok Sukhumvit", "cat": "hotel", "desc": "Euer Hotel — BTS Phrom Phong, Soi 22. Direct am Benjasiri Park.", "lat": 13.7308, "lon": 100.5665, "img": null}, {"id": "1", "name": "Terminal 21 Mall", "cat": "mall", "desc": "Einkaufszentrum im Flughafen-Look, 9 Etagen (Paris, London, Tokio...). Top Food Court im 5. Stock. 5 Min zu Fuß vom Hotel.", "lat": 13.7378687, "lon": 100.5604106, "img": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/96/Terminal_21_Asok_Bangkok_20202021.jpg/500px-Terminal_21_Asok_Bangkok_20202021.jpg"}, {"id": "2", "name": "Soi Cowboy", "cat": "night", "desc": "Bangkoks berühmte Rotlicht-Soap-Straße — Neon, Bars, bunt. Gleich neben Terminal 21.", "lat": 13.7370027, "lon": 100.5621367, "img": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d7/Soi_Cowboy_2023_03.jpg/500px-Soi_Cowboy_2023_03.jpg"}, {"id": "3", "name": "Benjasiri Park", "cat": "park", "desc": "Kleiner Park direkt beim Hotel — perfekt für den Morgen-Spaziergang.", "lat": 13.7309, "lon": 100.5681, "img": null}, {"id": "4", "name": "Siam Paragon", "cat": "mall", "desc": "Luxus-Mall mit Siam Ocean World (Aquarium), Kino, Food Hall. Direkt an BTS Siam.", "lat": 13.7467785, "lon": 100.534954, "img": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4d/Siam_Paragon_06.23.jpg/500px-Siam_Paragon_06.23.jpg"}, {"id": "5", "name": "MBK Center", "cat": "mall", "desc": "Riesige Shopping-Mall mit 2.000 Läden — günstig, chaotisch, authentisch.", "lat": 13.7447151, "lon": 100.5299165, "img": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/70/MBK_CENTER_%288%29.jpg/500px-MBK_CENTER_%288%29.jpg"}, {"id": "6", "name": "Erawan Shrine", "cat": "temple", "desc": "Berühmter hinduistischer Schrein mitten in der Stadt — Opfergaben, Tanz. BTS Chitlom.", "lat": 13.7443205, "lon": 100.5404211, "img": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bb/Erawan_statue_restored.jpg/500px-Erawan_statue_restored.jpg"}, {"id": "7", "name": "CentralWorld", "cat": "mall", "desc": "Eines der größten Einkaufszentren der Welt — 500.000 m², Ice Rink auf dem Dach.", "lat": 13.7465769, "lon": 100.5390414, "img": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/49/CentralWorld_20190825.jpg/500px-CentralWorld_20190825.jpg"}, {"id": "8", "name": "Siam Square", "cat": "mall", "desc": "Trendiges Viertel mit kleinen Boutiquen, Cafés, Street Food. Heart of Siam.", "lat": 13.7446046, "lon": 100.5331007, "img": null}, {"id": "9", "name": "Wat Pho", "cat": "temple", "desc": "Ältester Tempel Bangkoks — 46m liegender Buddha. Mönch-Segnung möglich.", "lat": 13.7463456, "lon": 100.4927381, "img": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/53/%E0%B8%9E%E0%B8%A3%E0%B8%B0%E0%B8%9E%E0%B8%B8%E0%B8%97%E0%B8%98%E0%B9%84%E0%B8%AA%E0%B8%A2%E0%B8%B2%E0%B8%AA%E0%B8%A7%E0%B8%B1%E0%B8%94%E0%B8%9E%E0%B8%A3%E0%B8%B0%E0%B9%80%E0%B8%8A%E0%B8%95%E0%B8%B8%E0%B8%9E%E0%B8%99.jpg/500px-%E0%B8%9E%E0%B8%A3%E0%B8%B0%E0%B8%9E%E0%B8%B8%E0%B8%97%E0%B8%98%E0%B9%84%E0%B8%AA%E0%B8%A2%E0%B8%B2%E0%B8%AA%E0%B8%A7%E0%B8%B1%E0%B8%94%E0%B8%9E%E0%B8%A3%E0%B8%B0%E0%B9%80%E0%B8%8A%E0%B8%95%E0%B8%B8%E0%B8%9E%E0%B8%99.jpg"}, {"id": "10", "name": "Wat Arun", "cat": "temple", "desc": "Tempel der Morgenröte — 79m hohe Stupa, beste Aussicht auf den Fluss. Abends beleuchtet.", "lat": 13.7438976, "lon": 100.4885137, "img": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/%E0%B9%80%E0%B8%88%E0%B8%94%E0%B8%B5%E0%B8%A2%E0%B9%8C%E0%B8%9B%E0%B8%A3%E0%B8%B0%E0%B8%98%E0%B8%B2%E0%B8%99%E0%B8%97%E0%B8%A3%E0%B8%87%E0%B8%9B%E0%B8%A3%E0%B8%B2%E0%B8%87%E0%B8%84%E0%B9%8C%E0%B8%A7%E0%B8%B1%E0%B8%94%E0%B8%AD%E0%B8%A3%E0%B8%B8%E0%B8%932.jpg/500px-%E0%B9%80%E0%B8%88%E0%B8%94%E0%B8%B5%E0%B8%A2%E0%B9%8C%E0%B8%9B%E0%B8%A3%E0%B8%B0%E0%B8%98%E0%B8%B2%E0%B8%99%E0%B8%97%E0%B8%A3%E0%B8%87%E0%B8%9B%E0%B8%A3%E0%B8%B2%E0%B8%87%E0%B8%84%E0%B9%8C%E0%B8%A7%E0%B8%B1%E0%B8%94%E0%B8%AD%E0%B8%A3%E0%B8%B8%E0%B8%932.jpg"}, {"id": "11", "name": "Grand Palace", "cat": "temple", "desc": "Prachtvoller Königspalast mit Wat Phra Kaew (Smaragd-Buddha). Muss man gesehen haben.", "lat": 13.7493514, "lon": 100.4918643, "img": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c7/0005574_-_Wat_Phra_Kaew_006.jpg/500px-0005574_-_Wat_Phra_Kaew_006.jpg"}, {"id": "12", "name": "Golden Mount (Wat Saket)", "cat": "temple", "desc": "Goldener Berg mit 360°-Panorama über Bangkok. Sonnenuntergang inklusive.", "lat": 13.7538556, "lon": 100.5066921, "img": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a4/%E0%B8%A7%E0%B8%B1%E0%B8%94%E0%B8%AA%E0%B8%A3%E0%B8%B0%E0%B9%80%E0%B8%81%E0%B8%A8-2.jpg/500px-%E0%B8%A7%E0%B8%B1%E0%B8%94%E0%B8%AA%E0%B8%A3%E0%B8%B0%E0%B9%80%E0%B8%81%E0%B8%A8-2.jpg"}, {"id": "13", "name": "Khao San Road", "cat": "night", "desc": "Die berühmteste Backpacker-Straße der Welt — Bars, Street Food, Chaos. Abends am besten.", "lat": 13.7589052, "lon": 100.4972746, "img": null}, {"id": "14", "name": "IconSiam", "cat": "mall", "desc": "Luxus-Mall am Fluss — Indoor-Wasserfall, 500+ Stores, beste Wassershow. Gratis Shuttle-Boot.", "lat": 13.7268227, "lon": 100.510294, "img": null}, {"id": "15", "name": "Asiatique Riverfront", "cat": "mall", "desc": "Freilicht-Einkaufszentrum am Fluss mit Riesenrad — schön abends, viele Restaurants.", "lat": 13.7042169, "lon": 100.5028259, "img": null}, {"id": "16", "name": "Chinatown Yaowarat", "cat": "food", "desc": "Chinatown — beste Food-Straße Bangkoks. Ab 17 Uhr explodiert der Street-Food-Markt.", "lat": 13.7444244, "lon": 100.5038615, "img": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/64/Yaowarat_at_night_%2832455695783%29.jpg/500px-Yaowarat_at_night_%2832455695783%29.jpg"}, {"id": "17", "name": "Chatuchak Weekend Market", "cat": "market", "desc": "Größter Wochenendmarkt der Welt — 15.000 Stände. NUR Sa+So geöffnet!", "lat": 13.8002651, "lon": 100.5511228, "img": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/20/Chatuchak_Park_%28I%29.jpg/500px-Chatuchak_Park_%28I%29.jpg"}, {"id": "18", "name": "Wat Paknam Big Buddha", "cat": "temple", "desc": "Moderner 69m hoher Big Buddha — Instagram-Hotspot, MRT bis Bang Phai + Boot.", "lat": 13.7216719, "lon": 100.4704273, "img": null}, {"id": "19", "name": "Jodd Fairs Rama 9", "cat": "market", "desc": "Neuer Street-Food-Markt an MRT Rama IX — sehr ordentlich, viele Fotomotive.", "lat": 13.7581533, "lon": 100.5670256, "img": null}, {"id": "20", "name": "Lumpini Park", "cat": "park", "desc": "Größter Park der Stadt — Warane, Jogging, Bootsverleih. Oase im Asphalt.", "lat": 13.7306004, "lon": 100.5415377, "img": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3e/Aerial_view_of_Lumphini_Park.jpg/500px-Aerial_view_of_Lumphini_Park.jpg"}, {"id": "21", "name": "Benchakitti Park", "cat": "park", "desc": "Moderner Park mit Baumkronen-Pfad, schönster neuer Park Bangkoks.", "lat": 13.7290819, "lon": 100.5547642, "img": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6b/Bangkok_Benjakiti_Park_2.jpg/500px-Bangkok_Benjakiti_Park_2.jpg"}, {"id": "22", "name": "Empire Tower (% Arabica 55F)", "cat": "food", "desc": "Wolkenkratzer mit % Arabica Coffee im 55. Stock — kostenlose Aussicht! BTS Chong Nonsi.", "lat": 13.7203185, "lon": 100.5301525, "img": null}, {"id": "23", "name": "Taling Chan Floating Market", "cat": "market", "desc": "Schwimmender Markt mit Bootstouren durch die Khlongs (Kanäle). So+Sa am besten.", "lat": 13.7764049, "lon": 100.4565735, "img": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6b/New_Southern_Bus_Terminal_%28Sai_Tai_Mai%29_-_in_2009.jpg/500px-New_Southern_Bus_Terminal_%28Sai_Tai_Mai%29_-_in_2009.jpg"}, {"id": "24", "name": "Pak Khlong Talat (Flower Market)", "cat": "market", "desc": "Bangkoks größter Blumenmarkt — nachts/früh morgens am schönsten, direkt am Fluss.", "lat": 13.7417086, "lon": 100.4963295, "img": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d5/Flowermarket.jpg/500px-Flowermarket.jpg"}, {"id": "25", "name": "Thip Samai Pad Thai", "cat": "food", "desc": "Legendäres Pad Thai — seit 1966, oft als bestes in Bangkok bezeichnet.", "lat": 13.7527631, "lon": 100.5048237, "img": null}, {"id": "26", "name": "Nana Plaza", "cat": "night", "desc": "Bekanntestes Rotlicht-Viertel — 3 Etagen Bars. Nur Abends geöffnet.", "lat": 13.7413979, "lon": 100.5532782, "img": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b8/Vista_desde_la_estaci%C3%B3n_Nana_del_Skytrain_BTS_de_Bangkok.jpg/500px-Vista_desde_la_estaci%C3%B3n_Nana_del_Skytrain_BTS_de_Bangkok.jpg"}, {"id": "27", "name": "Pratunam Market", "cat": "market", "desc": "Riesiger Textilmarkt — Kleidung, Stoffe, günstig. Für Shopping-Fans.", "lat": 13.7522704, "lon": 100.5405377, "img": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/Lost_in_the_City_Lights_%28Unsplash%29.jpg/500px-Lost_in_the_City_Lights_%28Unsplash%29.jpg"}, {"id": "28", "name": "Khlong Saen Saep Pier", "cat": "boat", "desc": "Khlong-Boot durch Bangkoks Kanäle — lokale Erfahrung, 15-20 THB pro Fahrt.", "lat": 13.7563, "lon": 100.5465, "img": null}, {"id": "29", "name": "Saphan Taksin Pier (Sathorn)", "cat": "boat", "desc": "Haupt-Pier für Chao Phraya Express Boote — Start für Wat Arun, Grand Palace, IconSiam.", "lat": 13.7183726, "lon": 100.5125661, "img": null}, {"id": "30", "name": "Asok BTS Station", "cat": "station", "desc": "Verkehrsknotenpunkt — BTS + MRT, Umsteigen für alle Richtungen.", "lat": 13.7370432, "lon": 100.5603571, "img": null}], "lines": [{"name": "BTS Sukhumvit", "color": "#009b3a", "points": [[13.8127, 100.5534], [13.798, 100.5518], [13.7799, 100.5445], [13.7628, 100.5316], [13.7569, 100.5365], [13.7517, 100.5317], [13.7456, 100.5343], [13.744, 100.5437], [13.7409, 100.5509], [13.7417, 100.5526], [13.737, 100.5604], [13.7319, 100.5676], [13.7241, 100.5801], [13.7202, 100.5853], [13.7163, 100.5915], [13.706, 100.6018]]}, {"name": "BTS Silom", "color": "#007a2e", "points": [[13.747, 100.529], [13.7456, 100.5343], [13.7387, 100.5355], [13.7276, 100.5342], [13.723, 100.5293], [13.7187, 100.5217], [13.7184, 100.513], [13.7203, 100.5066], [13.7225, 100.5015]]}, {"name": "MRT Blue", "color": "#0039a6", "points": [[13.7399, 100.513], [13.7325, 100.5233], [13.7288, 100.5279], [13.7276, 100.5371], [13.7195, 100.5485], [13.7157, 100.555], [13.7369, 100.5603], [13.7472, 100.5616], [13.7581, 100.5618], [13.7669, 100.5622], [13.7764, 100.5616], [13.7872, 100.5596], [13.7977, 100.5568], [13.8044, 100.5558], [13.813, 100.5535], [13.8071, 100.551]]}, {"name": "MRT Purple", "color": "#7b3fa0", "points": [[13.833, 100.5256], [13.8065, 100.5395]]}, {"name": "Airport Rail Link", "color": "#e31e24", "points": [[13.7569, 100.5365], [13.7576, 100.548], [13.751, 100.5601], [13.7397, 100.5968], [13.7322, 100.615], [13.7205, 100.653], [13.7135, 100.677], [13.697, 100.75]]}, {"name": "Gold Line", "color": "#f5a623", "points": [[13.7203, 100.5066], [13.721, 100.5095], [13.7242, 100.5075], [13.726, 100.5102]]}], "cat_emoji": {"hotel": "🏨", "mall": "🛍️", "night": "🌃", "park": "🌳", "temple": "🛕", "food": "🍜", "market": "🛒", "boat": "🚤", "station": "🚉"}, "cat_color": {"hotel": "#e8b04b", "mall": "#7ec8e3", "night": "#b98ce8", "park": "#6ec6a2", "temple": "#e8a05a", "food": "#e87a5a", "market": "#e8d44b", "boat": "#5ac8e8", "station": "#a0a0a0"}};
+
+const CAT_EMOJI = DATA.cat_emoji;
+const CAT_COLOR = DATA.cat_color;
+const CAT_LABEL = {
+  hotel:"Hotel", mall:"Shopping", night:"Nachtleben", park:"Park",
+  temple:"Tempel", food:"Essen", market:"Markt", boat:"Boot", station:"Station"
+};
+
+// Init map
+const map = L.map('map').setView([13.736, 100.535], 13);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  maxZoom: 19
+}).addTo(map);
+
+// Draw lines
+DATA.lines.forEach(line => {
+  L.polyline(line.points, {color:line.color, weight:4, opacity:0.85}).addTo(map);
+  // Station dots
+  line.points.forEach(pt => {
+    L.circleMarker(pt, {radius:4, color:'#fff', weight:1, fillColor:line.color, fillOpacity:1}).addTo(map);
+  });
+});
+
+// POI markers
+const markers = {};
+DATA.pois.forEach(p => {
+  const isHotel = p.id === 'HOTEL';
+  const icon = L.divIcon({
+    className: '',
+    html: `<div class="poi-marker ${isHotel ? 'hotel' : p.cat}" title="${p.name}">${isHotel ? '🏨' : p.id}</div>`,
+    iconSize: [26,26], iconAnchor: [13,13], popupAnchor: [0,-14]
+  });
+  const imgHtml = p.img ? `<img class="popup-img" src="${p.img}" alt="${p.name}" onerror="this.remove()">` : '';
+  const catTag = `<span class="cat-tag" style="background:${CAT_COLOR[p.cat]}33;color:${CAT_COLOR[p.cat]}">${CAT_EMOJI[p.cat]} ${CAT_LABEL[p.cat]||p.cat}</span>`;
+  const m = L.marker([p.lat, p.lon], {icon}).addTo(map);
+  m.bindPopup(`
+    ${imgHtml}
+    <div class="popup-head">${isHotel ? '🏨' : CAT_EMOJI[p.cat]} ${p.name}</div>
+    <div class="popup-body">${catTag}<br>${p.desc}</div>
+  `);
+  markers[p.id] = m;
+});
+
+// Filter chips
+const cats = [...new Set(DATA.pois.map(p=>p.cat))];
+const filterBar = document.getElementById('filters');
+let activeFilter = 'all';
+filterBar.innerHTML = `<div class="filter-chip active" data-cat="all">✨ Alle</div>` +
+  cats.map(c => `<div class="filter-chip" data-cat="${c}">${CAT_EMOJI[c]} ${CAT_LABEL[c]||c}</div>`).join('');
+
+filterBar.addEventListener('click', e => {
+  const chip = e.target.closest('.filter-chip');
+  if (!chip) return;
+  filterBar.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+  chip.classList.add('active');
+  activeFilter = chip.dataset.cat;
+  Object.entries(markers).forEach(([id,m]) => {
+    const p = DATA.pois.find(x=>x.id===id);
+    const show = activeFilter==='all' || p.cat===activeFilter || p.id==='HOTEL';
+    if (show) map.addLayer(m); else map.removeLayer(m);
+  });
+});
+
+// Legend grid
+const grid = document.getElementById('legendGrid');
+DATA.pois.forEach(p => {
+  const isHotel = p.id === 'HOTEL';
+  const imgHtml = p.img
+    ? `<img src="${p.img}" loading="lazy" onerror="this.outerHTML='<div class=noimg>${CAT_EMOJI[p.cat]}</div>'">`
+    : `<div class="noimg">${CAT_EMOJI[p.cat]}</div>`;
+  const el = document.createElement('div');
+  el.className = 'legend-item';
+  el.dataset.cat = p.cat;
+  el.innerHTML = `
+    <div class="img">${isHotel ? '' : `<div class="num">${p.id}</div>`}${imgHtml}</div>
+    <div class="info">
+      <div class="name">${isHotel ? '🏨 ' : ''}${p.name}</div>
+      <div class="cat">${CAT_EMOJI[p.cat]} ${CAT_LABEL[p.cat]||p.cat}</div>
+    </div>`;
+  el.addEventListener('click', () => {
+    const m = markers[p.id];
+    map.setView([p.lat, p.lon], 15);
+    m.openPopup();
+    el.scrollIntoView({behavior:'smooth', block:'nearest'});
+  });
+  grid.appendChild(el);
+});
+
+// Lines list
+document.getElementById('linesList').innerHTML = DATA.lines.map(l =>
+  `<div class="line-row"><span class="line-swatch" style="background:${l.color}"></span>${l.name}</div>`
+).join('');
+</script>
+</body>
+</html>
