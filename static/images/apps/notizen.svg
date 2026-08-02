@@ -17,15 +17,13 @@
   <g clip-path="url(#r)">
     <rect width="512" height="512" fill="url(#bg)"/>
     <rect width="512" height="512" fill="url(#sheen)"/>
-    <g filter="url(#shadow)">
+    <g transform="translate(-12.8 4.3) scale(21.33)" filter="url(#shadow)">
       
-      <g transform="translate(136 136) scale(10)">
         <path d="M5,4.2h9l6,6v9.6c0,1 -0.8,1.8 -1.8,1.8H5c-1,0 -1.8,-0.8 -1.8,-1.8V6c0,-1 0.8,-1.8 1.8,-1.8z" fill="#ffffff" fill-opacity="0.96"/>
         <path d="M13.5,4.2l6,6h-4.8c-0.7,0 -1.2,-0.5 -1.2,-1.2V4.2z" fill="#FFD60A" fill-opacity="0.4"/>
         <path d="M7,12.5h7v1.6H7zM7,16h7v1.6H7z" fill="#FFD60A" fill-opacity="0.85"/>
         <path d="M15.8,7.2l2.2,2.2l-4.8,4.8l-2.7,0.5l0.5,-2.7l4.8,-4.8z" fill="#ffffff"/>
         <path d="M17,6l1.2,1.2l-0.9,0.9l-1.2,-1.2L17,6z" fill="#FFF9DB"/>
-      </g>
     
     </g>
   </g>

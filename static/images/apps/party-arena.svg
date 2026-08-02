@@ -17,16 +17,13 @@
   <g clip-path="url(#r)">
     <rect width="512" height="512" fill="url(#bg)"/>
     <rect width="512" height="512" fill="url(#sheen)"/>
-    <g filter="url(#shadow)">
+    <g transform="translate(-36.6 -31.7) scale(24.38)" filter="url(#shadow)">
       
-      <g transform="translate(136 136) scale(10)">
-        <rect x="4.5" y="8.5" width="15" height="6.6" rx="3.3" fill="#ffffff" fill-opacity="0.96"/>
-        <rect x="4.5" y="8.5" width="15" height="2.4" rx="1.2" fill="#ffffff"/>
-        <circle cx="7" cy="11.8" r="1.1" fill="#FF375F"/>
-        <circle cx="17" cy="11.8" r="1.1" fill="#FF375F"/>
-        <circle cx="12" cy="13.6" r="0.95" fill="#FF6B8A"/>
-        <path d="M8.8,11.8h6.4" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round"/>
-      </g>
+        <rect x="4.5" y="9.2" width="15" height="5.8" rx="2.9" fill="#ffffff" fill-opacity="0.96"/>
+        <circle cx="7" cy="12.1" r="1.15" fill="#FF375F"/>
+        <circle cx="17" cy="12.1" r="1.15" fill="#FF375F"/>
+        <circle cx="12" cy="14.3" r="1.0" fill="#FF6B8A"/>
+        <path d="M8.8,12.1h6.4" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"/>
     
     </g>
   </g>
