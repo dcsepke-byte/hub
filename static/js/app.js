@@ -615,20 +615,24 @@ async function loadTodayEvents() {
     const events = data.today || [];
     el.innerHTML = events.length ? events.map((e) => eventRow(e, true)).join("") : "<p class='empty-state'>Keine Termine heute.</p>";
   } catch (e) { el.classList.remove("loader"); el.innerHTML = "<p class='empty-state'>Fehler.</p>"; }
-  $("#add-event-btn")?.addEventListener("click", async () => {
+  const addBtn = $("#add-event-btn");
+  if (addBtn && !addBtn.dataset.bound) {
+    addBtn.dataset.bound = "1";
+    addBtn.addEventListener("click", async () => {
     const title = promptWithFallback("Titel:"); if (!title) return;
     const time = promptWithFallback("Uhrzeit (HH:MM):"); if (!time) return;
     const today = new Date().toISOString().slice(0, 10);
     const res = await postJSON("/api/calendar", { title, start: `${today}T${time}:00` });
     if (res.ok) { flash("Termin hinzugefügt"); loadTodayEvents(); }
     else flash("Fehler", "error");
-  });
+    });
+  }
 }
 
 function eventRow(e, showNav = false) {
   const start = new Date(e.start);
   const navUrl = e.location ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(e.location)}` : null;
-  return `<div class="event-row"><div class="event-title">${e.title}</div><div class="event-date">${start.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'})}${showNav && navUrl ? ` <a class="event-nav" href="${navUrl}" target="_blank">🗺️</a>` : ""}</div></div>`;
+  return `<div class="event-row"><div class="event-title">${escapeHtml(e.title)}</div><div class="event-date">${start.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'})}${showNav && navUrl ? ` <a class="event-nav" href="${escapeHtml(navUrl)}" target="_blank" rel="noopener">🗺️</a>` : ""}</div></div>`;
 }
 
 function renderCalendarWeek(container, days, events, reference) {
@@ -681,7 +685,7 @@ async function loadNews() {
     const data = await getJSON("/api/news");
     el.classList.remove("loader");
     if (!data.ok || !data.items.length) { el.innerHTML = "<p class='empty-state'>News momentan nicht verfügbar.</p>"; return; }
-    el.innerHTML = data.items.map((n) => `<a href="${n.url}" target="_blank" class="news-item"><div class="news-title">${n.title}</div><div class="news-desc">${n.description}</div><div class="news-date">${n.published ? new Date(n.published).toLocaleString('de-DE', {weekday:'short', hour:'2-digit', minute:'2-digit'}) : ''}</div></a>`).join("");
+    el.innerHTML = data.items.map((n) => `<a href="${escapeHtml(n.url)}" target="_blank" class="news-item" rel="noopener"><div class="news-title">${escapeHtml(n.title)}</div><div class="news-desc">${escapeHtml(n.description)}</div><div class="news-date">${n.published ? new Date(n.published).toLocaleString('de-DE', {weekday:'short', hour:'2-digit', minute:'2-digit'}) : ''}</div></a>`).join("");
   } catch (e) { el.classList.remove("loader"); el.innerHTML = "<p class='empty-state'>Fehler beim Laden.</p>"; }
 }
 
@@ -1007,7 +1011,7 @@ async function loadLists() {
 function listRow(it) {
   return `<div class="list-row ${it.done ? 'done' : ''}" data-list="${appState.activeList}" data-id="${it.id}">
       <input type="checkbox" ${it.done ? 'checked' : ''} data-list="${appState.activeList}" data-id="${it.id}">
-      <div class="text">${it.text}${it.url ? ` <a href="${it.url}" target="_blank" class="list-item-url">↗</a>` : ""}</div>
+      <div class="text">${escapeHtml(it.text)}${it.url ? ` <a href="${escapeHtml(it.url)}" target="_blank" class="list-item-url" rel="noopener">↗</a>` : ""}</div>
       <div class="actions"><button class="edit-btn" data-list="${appState.activeList}" data-id="${it.id}">✎</button><button class="del-btn" data-list="${appState.activeList}" data-id="${it.id}">×</button></div>
     </div>`;
 }
@@ -1376,9 +1380,9 @@ function openNoteEditor(note) {
   modal.innerHTML = `<div class="modal-card wide">
     <div class="modal-header"><h3>${note ? "✏️ Notiz bearbeiten" : "📝 Neue Notiz"}</h3><button class="close-modal">×</button></div>
     <div class="modal-body">
-      <input type="text" id="note-title" placeholder="Titel" value="${note ? escapeHtml(note.title) : ""}" maxlength="120">
+      <input type="text" id="note-title" placeholder="Titel" value="${escapeHtml(note?.title || '')}" maxlength="120">
       <select id="note-project">${projects.map((p) => `<option ${note && note.project === p ? "selected" : ""}>${p}</option>`).join("")}</select>
-      <textarea id="note-content" rows="14" placeholder="Inhalt (Markdown)...">${note ? escapeHtml(note.content || "") : ""}</textarea>
+      <textarea id="note-content" rows="14" placeholder="Inhalt (Markdown)...">${escapeHtml(note?.content || '')}</textarea>
       <button id="note-save" class="btn-primary" style="width:100%">💾 Speichern</button>
     </div></div>`;
   modal.addEventListener("click", (e) => { if (e.target === modal) modal.remove(); });

@@ -1,7 +1,4 @@
-import os
-import json
 from pathlib import Path
-from flask import request, jsonify
 from app.config import Config
 
 BASE = Config.UPLOAD_FOLDER

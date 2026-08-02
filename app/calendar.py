@@ -1,12 +1,12 @@
+import json
+import os
 from datetime import datetime, timedelta
 from typing import List, Dict
-import os
 
 CALENDAR_FILE = os.environ.get("HUB_CALENDAR_FILE", "/opt/data/hub/files/calendar.json")
 
 
 def load_events() -> List[Dict]:
-    import json
     if not os.path.exists(CALENDAR_FILE):
         return []
     try:
@@ -17,7 +17,6 @@ def load_events() -> List[Dict]:
 
 
 def save_events(events: List[Dict]) -> bool:
-    import json
     try:
         os.makedirs(os.path.dirname(CALENDAR_FILE), exist_ok=True)
         with open(CALENDAR_FILE, "w", encoding="utf-8") as f:
