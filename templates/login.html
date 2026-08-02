@@ -4,11 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>HUB — Login</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260802i">
 </head>
 <body class="login-page">
   <main class="login-card">
-    <div class="logo"><img src="{{ url_for('static', filename='images/apps/hub.png') }}" alt="HUB" width="90" height="90"></div>
+    <div class="logo"><img src="{{ url_for('static', filename='images/apps/hub-dark.svg') }}" alt="HUB" width="90" height="90"></div>
     <h1>HUB</h1>
     <p class="subtitle">Danny's Central Workspace</p>
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -19,10 +19,20 @@
       {% endif %}
     {% endwith %}
     <form method="POST" action="{{ url_for('login') }}">
-      <input type="password" name="password" placeholder="Passwort" autofocus autocomplete="current-password" required {% if locked %}disabled{% endif %}>
+      <input type="password" name="password" id="login-password" placeholder="Passwort" autofocus autocomplete="current-password" required {% if locked %}disabled{% endif %}>
+      <div id="capslock-warn" style="display:none;color:#FF9500;font-size:12px;margin:-8px 0 8px;">⇧ Caps Lock ist aktiv</div>
       <button type="submit" class="btn-primary" {% if locked %}disabled{% endif %}>Anmelden</button>
     </form>
     {% if locked %}<p class="locked-hint">Zu viele Fehlversuche. 5 Min. warten.</p>{% endif %}
   </main>
+  <script>
+    const pw = document.getElementById('login-password');
+    const warn = document.getElementById('capslock-warn');
+    if (pw && warn) {
+      pw.addEventListener('keyup', function(e) {
+        warn.style.display = e.getModifierState('CapsLock') ? 'block' : 'none';
+      });
+    }
+  </script>
 </body>
 </html>

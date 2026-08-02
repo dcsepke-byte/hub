@@ -1,12 +1,14 @@
-const CACHE_NAME = 'hub-v1';
+const CACHE_NAME = 'hub-v2';
 const ASSETS = [
   '/',
   '/static/css/style.css',
   '/static/js/app.js',
   '/static/js/sw-register.js',
   '/static/images/icon.svg',
-  '/static/images/icon-192.png',
-  '/static/manifest.json'
+  '/static/images/icon-192.webp',
+  '/static/images/icon-512.webp',
+  '/static/manifest.json',
+  '/login'
 ];
 
 self.addEventListener('install', event => {
@@ -27,6 +29,8 @@ self.addEventListener('activate', event => {
 
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
+  // Nicht-essentiale API-Calls nicht cachen
+  if (event.request.url.includes('/api/')) return;
   event.respondWith(
     fetch(event.request)
       .then(response => {
