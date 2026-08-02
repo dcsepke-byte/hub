@@ -17,7 +17,7 @@
   <g clip-path="url(#r)">
     <rect width="512" height="512" fill="url(#bg)"/>
     <rect width="512" height="512" fill="url(#sheen)"/>
-    <g transform="translate(-36.6 -36.6) scale(24.38)" filter="url(#shadow)">
+    <g transform="translate(29.3 -78.7) scale(18.90)" filter="url(#shadow)">
       
         <!-- piano body -->
         <rect x="3.8" y="5.8" width="16.4" height="12.4" rx="2.4" fill="#ffffff" fill-opacity="0.97"/>
@@ -37,5 +37,6 @@
         <path d="M3.8,13.2h16.4" stroke="#FF375F" stroke-opacity="0.35" stroke-width="0.5"/>
     
     </g>
+    <text x="256" y="448" text-anchor="middle" font-family="'Inter', -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="34" font-weight="700" letter-spacing="-0.5" fill="#ffffff" fill-opacity="0.95">Klavier</text>
   </g>
 </svg>

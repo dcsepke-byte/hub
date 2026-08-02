@@ -8,11 +8,12 @@ import os
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(BASE, "static", "images", "apps")
 os.makedirs(OUT, exist_ok=True)
-
+# Per app: gradient (c1, c2) + symbol content + bbox + label text
 APPS = {}
 
 APPS["party-arena"] = {
     "grad": ("#FF375F", "#FF6B8A"),
+    "label": "Party Arena",
     "symbol": """
         <!-- controller shell with depth -->
         <path d="M4.6,8.4c-1.6,0 -2.9,1.3 -2.9,2.9v2.6c0,1.6 1.3,2.9 2.9,2.9h14.8c1.6,0 2.9,-1.3 2.9,-2.9v-2.6c0,-1.6 -1.3,-2.9 -2.9,-2.9h-14.8z" fill="#ffffff" fill-opacity="0.97"/>
@@ -35,6 +36,7 @@ APPS["party-arena"] = {
 
 APPS["piano-coach"] = {
     "grad": ("#5856D6", "#7A7AF0"),
+    "label": "Klavier",
     "symbol": """
         <!-- piano body -->
         <rect x="3.8" y="5.8" width="16.4" height="12.4" rx="2.4" fill="#ffffff" fill-opacity="0.97"/>
@@ -58,6 +60,7 @@ APPS["piano-coach"] = {
 
 APPS["bangkok"] = {
     "grad": ("#FF9500", "#FFB340"),
+    "label": "Bangkok",
     "symbol": """
         <!-- temple base -->
         <path d="M4.6,15.6c0.6,-0.9 1.6,-1.5 2.8,-1.7l0.5,-1.3l1.2,-0.5l0.3,-1.6l1.1,-1.1l1.1,1.1l0.3,1.6l1.2,0.5l0.5,1.3c1.2,0.2 2.2,0.8 2.8,1.7h-11.8z" fill="#ffffff" fill-opacity="0.97"/>
@@ -76,6 +79,7 @@ APPS["bangkok"] = {
 
 APPS["notizen"] = {
     "grad": ("#FFD60A", "#FFE566"),
+    "label": "Notizen",
     "symbol": """
         <!-- paper -->
         <path d="M5.4,4.2h8.4l5.8,5.8v9.8c0,1 -0.8,1.8 -1.8,1.8H5.4c-1,0 -1.8,-0.8 -1.8,-1.8V6c0,-1 0.8,-1.8 1.8,-1.8z" fill="#ffffff" fill-opacity="0.97"/>
@@ -96,6 +100,7 @@ APPS["notizen"] = {
 
 APPS["projects"] = {
     "grad": ("#AF52DE", "#C47FF0"),
+    "label": "Projekte",
     "symbol": """
         <!-- folder -->
         <path d="M4,8.4h5.2l2,2H19.8c0.9,0 1.6,0.7 1.6,1.6v6.4c0,0.9 -0.7,1.6 -1.6,1.6H4c-0.9,0 -1.6,-0.7 -1.6,-1.6v-8.4c0,-0.9 0.7,-1.6 1.6,-1.6z" fill="#ffffff" fill-opacity="0.97"/>
@@ -112,6 +117,7 @@ APPS["projects"] = {
 
 APPS["todo"] = {
     "grad": ("#30D158", "#5CE084"),
+    "label": "To-Do",
     "symbol": """
         <circle cx="12" cy="12" r="9.4" fill="#ffffff" fill-opacity="0.97"/>
         <circle cx="12" cy="12" r="9.4" fill="none" stroke="#1f8f3d" stroke-opacity="0.15" stroke-width="0.8"/>
@@ -128,6 +134,7 @@ APPS["todo"] = {
 
 APPS["explorer"] = {
     "grad": ("#0A84FF", "#4DA6FF"),
+    "label": "Explorer",
     "symbol": """
         <path d="M4,8.4h5.2l2,2H19.8c0.9,0 1.6,0.7 1.6,1.6v6.4c0,0.9 -0.7,1.6 -1.6,1.6H4c-0.9,0 -1.6,-0.7 -1.6,-1.6v-8.4c0,-0.9 0.7,-1.6 1.6,-1.6z" fill="#ffffff" fill-opacity="0.97"/>
         <path d="M4,8.4h5.2l2,2H19.8c0.9,0 1.6,0.7 1.6,1.6v1H2.4v-2.6c0,-0.9 0.7,-1.6 1.6,-1.6z" fill="#0A84FF" fill-opacity="0.22"/>
@@ -143,6 +150,7 @@ APPS["explorer"] = {
 
 APPS["chat"] = {
     "grad": ("#5E5CE6", "#8A88F5"),
+    "label": "Hermes",
     "symbol": """
         <path d="M4.2,5.6h15.6c1.1,0 2,0.9 2,2v7.8c0,1.1 -0.9,2 -2,2h-9.4l-4.4,4v-4h-1.8c-1.1,0 -2,-0.9 -2,-2V7.6c0,-1.1 0.9,-2 2,-2z" fill="#ffffff" fill-opacity="0.97"/>
         <!-- bubble lines -->
@@ -158,6 +166,7 @@ APPS["chat"] = {
 
 APPS["settings"] = {
     "grad": ("#8E8E93", "#B0B0B6"),
+    "label": "Settings",
     "symbol": """
         <path d="M12,3.6l1.7,1.8l0.35,0.3l0.55,0.1l2.4,-0.35l1.5,2.1l-1.55,2l-0.25,0.35l0.15,0.45l0.6,2.3l-2.1,1.4l-2.1,-1.4l-0.45,-0.3l-0.45,0.15l-2.1,1.55l-2.2,-1.4l0.6,-2.3l0.15,-0.45l-0.25,-0.35l-1.6,-2l1.5,-2.1l2.4,0.35l0.55,-0.1l0.35,-0.3L12,3.6z" fill="#ffffff" fill-opacity="0.97"/>
         <!-- teeth detail -->
@@ -173,6 +182,7 @@ APPS["settings"] = {
 
 APPS["hub"] = {
     "grad": ("#5856D6", "#8B5CF6"),
+    "label": "HUB",
     "symbol": """
         <path d="M12,3.4l8.4,7V19c0,0.8 -0.6,1.4 -1.4,1.4h-4.9v-5.3h-4.2v5.3H5c-0.8,0 -1.4,-0.6 -1.4,-1.4v-8.6L12,3.4z" fill="#ffffff" fill-opacity="0.97"/>
         <!-- door -->
@@ -189,6 +199,7 @@ APPS["hub"] = {
 
 APPS["budget"] = {
     "grad": ("#32D74B", "#6AE57E"),
+    "label": "Budget",
     "symbol": """
         <circle cx="12" cy="12" r="9.4" fill="#ffffff" fill-opacity="0.97"/>
         <circle cx="12" cy="12" r="9.4" fill="none" stroke="#1f8f3d" stroke-opacity="0.12" stroke-width="0.8"/>
@@ -209,6 +220,7 @@ APPS["budget"] = {
 
 APPS["health"] = {
     "grad": ("#FF453A", "#FF6961"),
+    "label": "Gesundheit",
     "symbol": """
         <path d="M12,20.3l-1.5,-1.35C5.7,14.65 2.8,11.95 2.8,8.65c0,-2.7 2.2,-4.9 4.9,-4.9c1.6,0 3.1,0.75 4.3,2c1.2,-1.25 2.7,-2 4.3,-2c2.7,0 4.9,2.2 4.9,4.9c0,3.3 -2.9,6 -7.7,10.3L12,20.3z" fill="#ffffff" fill-opacity="0.97"/>
         <!-- inner heart shade -->
@@ -225,13 +237,19 @@ APPS["health"] = {
 def svg_icon(name, cfg):
     c1, c2 = cfg["grad"]
     symbol = cfg["symbol"]
+    label = cfg.get("label", "")
     minx, miny, maxx, maxy = cfg["bbox"]
     bw, bh = maxx - minx, maxy - miny
-    target = 512 * 0.80
+    # Symbol etwas kleiner (fits obere 62%), Text unten
+    target = 512 * 0.62
     scale = target / max(bw, bh)
     sw, sh = bw * scale, bh * scale
     tx = (512 - sw) / 2 - minx * scale
-    ty = (512 - sh) / 2 - miny * scale
+    ty = (512 * 0.50 - sh) / 2 - miny * scale + 20
+    label_svg = ""
+    if label:
+        label_svg = f"""
+    <text x="256" y="448" text-anchor="middle" font-family="'Inter', -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="34" font-weight="700" letter-spacing="-0.5" fill="#ffffff" fill-opacity="0.95">{label}</text>"""
     return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -253,7 +271,7 @@ def svg_icon(name, cfg):
     <rect width="512" height="512" fill="url(#sheen)"/>
     <g transform="translate({tx:.1f} {ty:.1f}) scale({scale:.2f})" filter="url(#shadow)">
       {symbol}
-    </g>
+    </g>{label_svg}
   </g>
 </svg>"""
 

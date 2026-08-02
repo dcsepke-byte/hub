@@ -17,7 +17,7 @@
   <g clip-path="url(#r)">
     <rect width="512" height="512" fill="url(#bg)"/>
     <rect width="512" height="512" fill="url(#sheen)"/>
-    <g transform="translate(15.1 5.0) scale(20.08)" filter="url(#shadow)">
+    <g transform="translate(69.3 -46.5) scale(15.56)" filter="url(#shadow)">
       
         <path d="M4.2,5.6h15.6c1.1,0 2,0.9 2,2v7.8c0,1.1 -0.9,2 -2,2h-9.4l-4.4,4v-4h-1.8c-1.1,0 -2,-0.9 -2,-2V7.6c0,-1.1 0.9,-2 2,-2z" fill="#ffffff" fill-opacity="0.97"/>
         <!-- bubble lines -->
@@ -29,5 +29,6 @@
         <path d="M8.6,17.4l-1.6,1.6" stroke="#ffffff" stroke-opacity="0.5" stroke-width="0.7" stroke-linecap="round" fill="none"/>
     
     </g>
+    <text x="256" y="448" text-anchor="middle" font-family="'Inter', -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="34" font-weight="700" letter-spacing="-0.5" fill="#ffffff" fill-opacity="0.95">Hermes</text>
   </g>
 </svg>

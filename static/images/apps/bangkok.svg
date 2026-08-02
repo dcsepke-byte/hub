@@ -17,7 +17,7 @@
   <g clip-path="url(#r)">
     <rect width="512" height="512" fill="url(#bg)"/>
     <rect width="512" height="512" fill="url(#sheen)"/>
-    <g transform="translate(-51.2 -51.2) scale(25.60)" filter="url(#shadow)">
+    <g transform="translate(17.9 -90.1) scale(19.84)" filter="url(#shadow)">
       
         <!-- temple base -->
         <path d="M4.6,15.6c0.6,-0.9 1.6,-1.5 2.8,-1.7l0.5,-1.3l1.2,-0.5l0.3,-1.6l1.1,-1.1l1.1,1.1l0.3,1.6l1.2,0.5l0.5,1.3c1.2,0.2 2.2,0.8 2.8,1.7h-11.8z" fill="#ffffff" fill-opacity="0.97"/>
@@ -32,5 +32,6 @@
         <path d="M4.4,16.9h15.2" stroke="#ffffff" stroke-width="1" stroke-linecap="round" fill="none" fill-opacity="0.5"/>
     
     </g>
+    <text x="256" y="448" text-anchor="middle" font-family="'Inter', -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="34" font-weight="700" letter-spacing="-0.5" fill="#ffffff" fill-opacity="0.95">Bangkok</text>
   </g>
 </svg>
