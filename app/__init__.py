@@ -12,6 +12,7 @@ from app.auth import require_login, verify_password, LoginThrottle
 from app import notion, weather, explorer
 from app import hermes, search as search_module, news, calendar, lists
 from app import projects as projects_module, stocks
+from app import notes, budget, timetrack, health
 
 PROJECTS_DATA = []
 
@@ -154,16 +155,121 @@ def api_create_task():
     return jsonify(notion.create_task(title, project, status, due))
 
 
+@app.route("/api/notes")
+@require_login
+def api_notes():
+    q = request.args.get("q", "")
+    project = request.args.get("project", "")
+    return jsonify(notes.list_notes(q=q, project=project))
+
+
 @app.route("/api/notes", methods=["POST"])
 @require_login
 def api_create_note():
     data = request.get_json(silent=True) or {}
     title = data.get("title", "").strip()
-    project = data.get("project", "Persoenlich").strip()
-    content = data.get("content", "").strip()
     if not title:
         return jsonify({"ok": False, "error": "Titel fehlt"}), 400
-    return jsonify(notion.create_knowledge_entry(title, content, project))
+    return jsonify(notes.create_note(title, data.get("content", ""), data.get("project", "")))
+
+
+@app.route("/api/notes/<note_id>", methods=["PATCH"])
+@require_login
+def api_update_note(note_id):
+    data = request.get_json(silent=True) or {}
+    return jsonify(notes.update_note(note_id, **data))
+
+
+@app.route("/api/notes/<note_id>", methods=["DELETE"])
+@require_login
+def api_delete_note(note_id):
+    return jsonify(notes.delete_note(note_id))
+
+
+# --- Budget ---
+
+@app.route("/api/budget")
+@require_login
+def api_budget():
+    return jsonify(budget.monthly_summary())
+
+
+@app.route("/api/budget/categories", methods=["POST"])
+@require_login
+def api_budget_category():
+    data = request.get_json(silent=True) or {}
+    return jsonify(budget.add_category(data.get("name", ""), data.get("limit", 0)))
+
+
+@app.route("/api/budget/categories/<name>", methods=["PATCH"])
+@require_login
+def api_budget_category_update(name):
+    data = request.get_json(silent=True) or {}
+    return jsonify(budget.set_limit(name, data.get("limit", 0)))
+
+
+@app.route("/api/budget/expenses", methods=["POST"])
+@require_login
+def api_budget_expense():
+    data = request.get_json(silent=True) or {}
+    return jsonify(budget.add_expense(data.get("category", ""), data.get("amount", 0), data.get("note", "")))
+
+
+# --- Time Tracking ---
+
+@app.route("/api/timetrack")
+@require_login
+def api_timetrack():
+    return jsonify(timetrack.get_state())
+
+
+@app.route("/api/timetrack/start", methods=["POST"])
+@require_login
+def api_timetrack_start():
+    data = request.get_json(silent=True) or {}
+    return jsonify(timetrack.start(data.get("project", ""), data.get("task", "")))
+
+
+@app.route("/api/timetrack/stop", methods=["POST"])
+@require_login
+def api_timetrack_stop():
+    return jsonify(timetrack.stop())
+
+
+@app.route("/api/timetrack/toggle", methods=["POST"])
+@require_login
+def api_timetrack_toggle():
+    data = request.get_json(silent=True) or {}
+    return jsonify(timetrack.toggle(data.get("project", ""), data.get("task", "")))
+
+
+# --- Health / Wasser ---
+
+@app.route("/api/health")
+@require_login
+def api_health():
+    return jsonify(health.get_health())
+
+
+@app.route("/api/health/water", methods=["POST"])
+@require_login
+def api_health_water():
+    data = request.get_json(silent=True) or {}
+    return jsonify(health.add_water(data.get("amount", 0)))
+
+
+@app.route("/api/health/goal", methods=["PATCH"])
+@require_login
+def api_health_goal():
+    data = request.get_json(silent=True) or {}
+    return jsonify(health.set_goal(data.get("goal", 2)))
+
+
+@app.route("/api/health/sleep", methods=["POST"])
+@require_login
+def api_health_sleep():
+    data = request.get_json(silent=True) or {}
+    return jsonify(health.add_sleep(data.get("hours", 0), data.get("date", "")))
 
 
 @app.route("/api/explorer")

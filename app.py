@@ -255,6 +255,11 @@ def todos():
 def explorer():
     return render_template('index.html', page='explorer')
 
+@app.route('/bangkok')
+@login_required
+def bangkok_map():
+    return app.send_static_file('bangkok/map.html')
+
 @app.route('/settings')
 @login_required
 def settings():
@@ -362,6 +367,7 @@ def api_delete_file():
 @app.route('/api/password', methods=['POST'])
 @auth_required
 def api_change_password():
+    global PASSWORD_HASH
     data = request.get_json()
     old = data.get('old', '')
     new = data.get('new', '')
@@ -371,7 +377,6 @@ def api_change_password():
         return jsonify({'error': 'Passwort zu kurz (min. 4 Zeichen)'}), 400
     new_hash = generate_password_hash(new)
     PASSWORD_HASH_FILE.write_text(new_hash)
-    global PASSWORD_HASH
     PASSWORD_HASH = new_hash
     return jsonify({'success': True})
 

@@ -1,5 +1,5 @@
 const currentPage = "{{ page }}";
-let appState = { page: currentPage, projectFilter: null, taskFilter: "all", path: "", projectDetail: null, activeList: "Einkauf", explorerView: "grid" };
+let appState = { page: currentPage, projectFilter: null, taskFilter: "all", taskView: "list", path: "", projectDetail: null, activeList: "Einkauf", explorerView: "grid", notes: [], timer: null };
 let socket = null;
 let chatHistory = [];
 let autoRefreshTimer = null;
@@ -74,6 +74,9 @@ const PAGES = {
   explorer: renderExplorer,
   settings: renderSettings,
   project: renderProjectDetail,
+  notes: renderNotes,
+  budget: renderBudget,
+  health: renderHealth,
 };
 
 function init() {
@@ -84,6 +87,8 @@ function init() {
   initShortcuts();
   initSocket();
   startAutoRefresh();
+  initIdleLogout();
+  startTimerTick();
   const start = location.hash.slice(1) || localStorage.getItem('hub_last_page') || currentPage || "home";
   navigate(start, false);
   window.addEventListener("hashchange", () => navigate(location.hash.slice(1), false));
@@ -386,7 +391,10 @@ function initPullToRefresh(callback) {
   }, { passive: true });
 }
 
-function appIcon(id, label) {
+function appIcon(id, label, emoji) {
+  if (emoji) {
+    return `<div class="app-icon" data-app="${id}"><div class="app-icon-emoji" role="img" aria-label="${label}">${emoji}</div><div class="label">${label}</div></div>`;
+  }
   return `<div class="app-icon" data-app="${id}"><img src="/static/images/apps/${id}.png" alt="${label}"><div class="label">${label}</div></div>`;
 }
 
@@ -402,6 +410,9 @@ function bindAppClicks() {
       else if (id === "explorer") navigate("explorer");
       else if (id === "chat") $(".chat-widget")?.classList.add("expanded");
       else if (id === "settings") navigate("settings");
+      else if (id === "notizen") navigate("notes");
+      else if (id === "budget") navigate("budget");
+      else if (id === "health") navigate("health");
     });
   });
 }
@@ -413,9 +424,12 @@ async function renderHome(container) {
       ${appIcon("party-arena", "Party Arena")}
       ${appIcon("piano-coach", "Klavier")}
       ${appIcon("bangkok", "Bangkok")}
+      ${appIcon("notizen", "Notizen", "📝")}
       ${appIcon("projects", "Projekte")}
       ${appIcon("todo", "To-Do")}
+      ${appIcon("budget", "Budget", "💰")}
       ${appIcon("explorer", "Explorer")}
+      ${appIcon("health", "Gesundheit", "💧")}
       ${appIcon("chat", "Hermes")}
       ${appIcon("settings", "Settings")}
     </div>
@@ -440,15 +454,17 @@ async function renderHome(container) {
       </div>
       <div class="card" id="calendar-card"><h3>Termine heute</h3><div id="today-events">${skeletonList(3)}</div></div>
       <div class="card" id="tasks-card"><h3>✅ Heutige To-Do</h3><div class="task-list">${skeletonList(4)}</div></div>
+      <div class="card" id="timer-card"><h3>⏱️ Timer</h3><div id="timer-body">${skeletonCard()}</div></div>
+      <div class="card" id="water-card"><h3>💧 Wasser</h3><div id="water-body">${skeletonCard()}</div></div>
       <div class="card" id="stocks-card"><h3>📈 Watchlist</h3><div class="task-list">${skeletonList(3)}</div></div>
       <div class="card" id="news-card"><h3>📰 News</h3><div id="news-list">${skeletonList(3)}</div></div>
     </div>`;
   bindAppClicks();
   initChat();
   bindSuggestionChip();
-  await Promise.all([loadWeather(), loadTodayTasks(), loadTodayEvents(), loadNews(), loadStocks(), loadCalendarWeek()]);
+  await Promise.all([loadWeather(), loadTodayTasks(), loadTodayEvents(), loadNews(), loadStocks(), loadCalendarWeek(), loadTimer(), loadWater()]);
   refreshSuggestionChip();
-  initPullToRefresh(() => Promise.all([loadWeather(), loadTodayTasks(), loadTodayEvents(), loadNews(), loadStocks(), loadCalendarWeek()]).then(refreshSuggestionChip));
+  initPullToRefresh(() => Promise.all([loadWeather(), loadTodayTasks(), loadTodayEvents(), loadNews(), loadStocks(), loadCalendarWeek(), loadTimer(), loadWater()]).then(refreshSuggestionChip));
 }
 
 function statusBadgeClass(status) {
@@ -469,22 +485,33 @@ async function refreshSuggestionChip() {
   const chip = $("#suggestion-chip");
   if (!chip) return;
   try {
-    const tasks = await getJSON("/api/tasks?status=Offen");
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    const todayCount = tasks.filter((t) => {
-      if (!t.due) return false;
-      const d = new Date(t.due); d.setHours(0, 0, 0, 0);
-      return d.getTime() === today.getTime();
-    }).length;
-    const overdueCount = tasks.filter((t) => {
-      if (!t.due) return false;
-      const d = new Date(t.due); d.setHours(0, 0, 0, 0);
-      return d.getTime() < today.getTime();
-    }).length;
-    let text = "";
-    if (overdueCount > 0) text = `${overdueCount} Task${overdueCount === 1 ? "" : "s"} überfällig`;
-    else if (todayCount > 0) text = `${todayCount} Task${todayCount === 1 ? "" : "s"} heute fällig`;
-    else text = `${tasks.length} offene Task${tasks.length === 1 ? "" : "s"}`;
+    const hour = new Date().getHours();
+    const [tasks, cal] = await Promise.all([getJSON("/api/tasks?status=Offen"), getJSON("/api/calendar")]);
+    const todayCount = tasks.filter((t) => dueClass(t.due) === "due-today").length;
+    const overdueCount = tasks.filter((t) => dueClass(t.due) === "due-overdue").length;
+    const evCount = (cal.today || []).length;
+    let icon = "⚡", text = "";
+    if (hour >= 5 && hour < 11) {
+      // Morgen: Wetter + heute anstehende Termine
+      icon = "🌅";
+      text = `Heute ${evCount} Termin${evCount === 1 ? "" : "e"}, ${todayCount} Task${todayCount === 1 ? "" : "s"} fällig`;
+      if (!evCount && !todayCount) text = `${tasks.length} offene Tasks — guter Start in den Tag`;
+    } else if (hour >= 11 && hour < 17) {
+      // Mittag: offene Tasks
+      icon = "☀️";
+      if (overdueCount > 0) text = `${overdueCount} Task${overdueCount === 1 ? "" : "s"} überfällig · ${tasks.length} offen`;
+      else text = `${tasks.length} offene Task${tasks.length === 1 ? "" : "s"} · ${evCount} Termin${evCount === 1 ? "" : "e"} heute`;
+    } else if (hour >= 17 && hour < 23) {
+      // Abend: Tagesrückblick + morgen vorbereiten
+      icon = "🌇";
+      text = `Rückblick: ${evCount} Termin${evCount === 1 ? "" : "e"} heute, ${tasks.length} offene Tasks — morgen vorbereiten`;
+    } else {
+      // Nacht: Ruhe-Hinweis
+      icon = "🌙";
+      text = tasks.length ? `${tasks.length} offene Tasks — sonst gute Nacht 🌙` : "Gute Nacht 🌙 — morgen ist ein neuer Tag";
+    }
+    const iconEl = chip.querySelector(".icon");
+    if (iconEl) iconEl.textContent = icon;
     $("#chip-text").textContent = text;
     chip.style.opacity = "1";
     chip.style.transform = "translateY(0)";
@@ -499,7 +526,7 @@ async function maybeRefreshHome() {
   if (appState.page !== "home") return;
   if (document.visibilityState !== "visible") return;
   if (isInputFocused()) return;
-  await Promise.all([loadWeather(), loadTodayTasks(), loadTodayEvents(), loadNews(), loadStocks(), loadCalendarWeek(), refreshSuggestionChip()]);
+  await Promise.all([loadWeather(), loadTodayTasks(), loadTodayEvents(), loadNews(), loadStocks(), loadCalendarWeek(), loadTimer(), loadWater(), refreshSuggestionChip()]);
 }
 
 function startAutoRefresh() {
@@ -728,11 +755,16 @@ async function renderProjects(container) {
             </div>
           </div>
           <div class="progress-wrap"><div class="progress-bar"><div style="width:${pct}%"></div></div><div class="progress-text">${pct}% abgeschlossen</div></div>
-          <div class="project-actions"><button class="open-btn">Öffnen</button><button class="edit-btn">Bearbeiten</button><button class="danger del-btn">Löschen</button></div>
+          <div class="project-actions"><button class="timer-btn" title="Timer für dieses Projekt">⏱</button><button class="open-btn">Öffnen</button><button class="edit-btn">Bearbeiten</button><button class="danger del-btn">Löschen</button></div>
         </div>`;
     }).join("");
     $$(".project-card").forEach((card) => {
       const id = card.dataset.id;
+      card.querySelector(".timer-btn").addEventListener("click", async () => {
+        const name = card.querySelector("h4").textContent;
+        const res = await postJSON("/api/timetrack/start", { project: name, task: "" });
+        flash(res.ok ? `⏱ Timer gestartet: ${name}` : (res.error || "Fehler"), res.ok ? "ok" : "error");
+      });
       card.querySelector(".open-btn").addEventListener("click", () => { appState.projectDetail = id; navigate("project"); });
       card.querySelector(".edit-btn").addEventListener("click", () => editProject(id));
       card.querySelector(".del-btn").addEventListener("click", async () => {
@@ -800,8 +832,12 @@ async function renderTasks(container) {
     <h2 class="page-title">To-Do</h2>
     <div class="task-tabs"><button data-tab="tasks" class="active">Aufgaben</button><button data-tab="lists">Listen</button><button data-tab="dashboard">Dashboard</button></div>
     <div id="task-panel">
-      <div class="task-filter"><button data-filter="all" class="active">Alle</button><button data-filter="Offen">Offen</button><button data-filter="Erledigt">Erledigt</button><button data-filter="Party Arena">Party Arena</button><button data-filter="KI-Videos">KI-Videos</button><button data-filter="Hochzeit">Hochzeit</button><button data-filter="Server">Server</button></div>
-      <div class="task-list" id="task-list">${skeletonList(6)}</div>
+      <div class="task-view-tabs"><button data-view="list" class="active">Liste</button><button data-view="matrix">Matrix</button></div>
+      <div id="task-list-wrap">
+        <div class="task-filter"><button data-filter="all" class="active">Alle</button><button data-filter="Offen">Offen</button><button data-filter="Erledigt">Erledigt</button><button data-filter="Party Arena">Party Arena</button><button data-filter="KI-Videos">KI-Videos</button><button data-filter="Hochzeit">Hochzeit</button><button data-filter="Server">Server</button></div>
+        <div class="task-list" id="task-list">${skeletonList(6)}</div>
+      </div>
+      <div id="matrix-panel" style="display:none"></div>
     </div>
     <div id="lists-panel" style="display:none">
       <div class="list-tabs" id="list-tabs">${skeletonList(2)}</div>
@@ -817,12 +853,13 @@ async function renderTasks(container) {
       </form>
     </div>
     <div id="dashboard-panel" style="display:none"><div class="grid grid-3" id="dash-grid"></div></div>`;
-
   $("#back-home")?.addEventListener("click", () => navigate("home"));
   $$(".task-tabs button").forEach((btn) => {
     btn.addEventListener("click", () => {
       $$(".task-tabs button").forEach((b) => b.classList.remove("active")); btn.classList.add("active");
       const tab = btn.dataset.tab;
+      $(".task-view-tabs").style.display = tab === "tasks" ? "flex" : "none";
+      $(".task-filter").style.display = tab === "tasks" ? "flex" : "none";
       $("#task-panel").style.display = tab === "tasks" ? "block" : "none";
       $("#lists-panel").style.display = tab === "lists" ? "block" : "none";
       $("#dashboard-panel").style.display = tab === "dashboard" ? "block" : "none";
@@ -830,8 +867,24 @@ async function renderTasks(container) {
       if (tab === "dashboard") loadDashboard();
     });
   });
+  $$(".task-view-tabs button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      $$(".task-view-tabs button").forEach((b) => b.classList.remove("active")); btn.classList.add("active");
+      appState.taskView = btn.dataset.view;
+      $("#task-list-wrap").style.display = appState.taskView === "list" ? "block" : "none";
+      $("#matrix-panel").style.display = appState.taskView === "matrix" ? "block" : "none";
+      if (appState.taskView === "matrix") renderMatrixView();
+    });
+  });
   $$(".task-filter button").forEach((btn) => {
     btn.addEventListener("click", () => { $$(".task-filter button").forEach((b) => b.classList.remove("active")); btn.classList.add("active"); appState.taskFilter = btn.dataset.filter; loadTasks(); });
+  });
+  $("#idle-save").addEventListener("click", () => {
+    const v = parseInt($("#idle-minutes").value, 10);
+    if (!v || v < 1) return flash("Ungültige Minuten", "error");
+    localStorage.setItem("hub_idle_minutes", String(v));
+    flash(`Auto-Logout: ${v} Minuten`);
+    if (window.hubIdleReset) window.hubIdleReset();
   });
   $("#list-add-form").addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -864,6 +917,7 @@ function dueClass(due) {
 }
 
 async function loadTasks() {
+  if (appState.taskView === "matrix") return renderMatrixView();
   const list = $("#task-list"); if (!list) return;
   try {
     let url = "/api/tasks";
@@ -972,19 +1026,43 @@ function initSwipe(root, reloadFn, isList = false) {
 function taskRow(t) {
   const done = t.status === "Erledigt";
   const dc = dueClass(t.due);
+  const prio = getTaskPrios()[t.id] || "";
   let dueLabel = "";
   if (t.due) {
     const d = new Date(t.due); d.setHours(0,0,0,0); const today = new Date(); today.setHours(0,0,0,0);
     const diff = Math.round((d - today) / 86400000);
     dueLabel = diff === 0 ? "Heute" : diff === 1 ? "Morgen" : diff < 0 ? `${Math.abs(diff)}d überfällig` : `in ${diff}d`;
   }
-  return `<div class="task-item ${done ? "done" : ""} ${dc}" data-id="${t.id}"><input type="checkbox" ${done ? "checked" : ""} data-id="${t.id}"><div class="task-title" title="${t.title}">${t.title}</div><div class="task-due">${dueLabel}</div><div class="task-meta">${t.project || "—"}</div></div>`;
+  return `<div class="task-item ${done ? "done" : ""} ${dc}" data-id="${t.id}"><input type="checkbox" ${done ? "checked" : ""} data-id="${t.id}"><div class="task-title" title="${t.title}">${t.title}</div><span class="prio-badge ${prio ? `p${prio[1]}` : ""}" data-prio="${prio}" title="Priorität (P1-P4)">${prio || "–"}</span><div class="task-due">${dueLabel}</div><div class="task-meta">${t.project || "—"}</div></div>`;
 }
 
 function bindTaskCheckboxes(root, cb) {
   root.querySelectorAll("input[type=checkbox]").forEach((box) => {
     box.addEventListener("change", async () => { await patchJSON(`/api/tasks/${box.dataset.id}/status`, { status: box.checked ? "Erledigt" : "Offen" }); cb && cb(); });
   });
+  root.querySelectorAll(".prio-badge").forEach((badge) => {
+    badge.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const item = badge.closest(".task-item");
+      if (!item) return;
+      const order = ["P1", "P2", "P3", "P4", ""];
+      const cur = badge.dataset.prio || "";
+      const next = order[(order.indexOf(cur) + 1) % order.length];
+      setTaskPrio(item.dataset.id, next);
+      cb && cb();
+    });
+  });
+}
+
+// Prioritäten (Eisenhower): lokal pro Task gespeichert
+function getTaskPrios() {
+  try { return JSON.parse(localStorage.getItem("hub_task_prio") || "{}"); } catch (e) { return {}; }
+}
+function setTaskPrio(id, prio) {
+  const map = getTaskPrios();
+  if (!prio) delete map[id];
+  else map[id] = prio;
+  localStorage.setItem("hub_task_prio", JSON.stringify(map));
 }
 
 // --- Explorer vereinfacht ---
@@ -1107,7 +1185,7 @@ function formatBytes(b) {
 // --- Settings ---
 function renderSettings(container) {
   const isDark = document.body.classList.contains("dark");
-  container.innerHTML = `<div class="back-home"><button class="btn-secondary" id="back-home">← Home</button></div><h2 class="page-title">Settings</h2><div class="grid grid-2"><div class="card"><h3>🎨 Erscheinungsbild</h3><div class="setting-row"><label>Dark Mode</label><input type="checkbox" id="dark-toggle" ${isDark ? "checked" : ""}></div></div><div class="card"><h3>🔌 Integrationen</h3><div class="integration-list"><div class="integration-item ok"><span class="status-dot"></span> Notion</div><div class="integration-item ok"><span class="status-dot"></span> Open-Meteo Wetter</div><div class="integration-item ok"><span class="status-dot"></span> Ollama Cloud KI</div><div class="integration-item gap"><span class="status-dot"></span> Google Calendar (Stufe 2)</div></div></div><div class="card" style="grid-column:1/-1"><h3>🔐 Sicherheit</h3><div class="setting-row"><label>Passwort ändern</label><button class="btn-secondary" id="toggle-pw">Ändern</button></div><form id="pw-form" style="display:none; margin-top:10px"><input type="password" id="current-pw" placeholder="Aktuelles Passwort" required><input type="password" id="new-pw" placeholder="Neues Passwort" required><button type="submit" class="btn-primary">Speichern</button><pre id="pw-result" style="margin-top:10px; word-break:break-all; font-size:12px; color:var(--text-tertiary)"></pre></form></div></div>`;
+  container.innerHTML = `<div class="back-home"><button class="btn-secondary" id="back-home">← Home</button></div><h2 class="page-title">Settings</h2><div class="grid grid-2"><div class="card"><h3>🎨 Erscheinungsbild</h3><div class="setting-row"><label>Dark Mode</label><input type="checkbox" id="dark-toggle" ${isDark ? "checked" : ""}></div></div><div class="card"><h3>🔌 Integrationen</h3><div class="integration-list"><div class="integration-item ok"><span class="status-dot"></span> Notion</div><div class="integration-item ok"><span class="status-dot"></span> Open-Meteo Wetter</div><div class="integration-item ok"><span class="status-dot"></span> Ollama Cloud KI</div><div class="integration-item gap"><span class="status-dot"></span> Google Calendar (Stufe 2)</div></div></div><div class="card"><h3>⏱️ Auto-Logout</h3><div class="setting-row"><label>Nach Inaktivität abmelden</label></div><div style="display:flex;gap:6px"><input type="number" id="idle-minutes" min="1" max="240" value="${localStorage.getItem("hub_idle_minutes") || 30}" style="flex:1;padding:9px 11px;border-radius:10px;border:none;background:var(--surface-2);color:var(--text);font-size:14px"><button class="btn-secondary" id="idle-save">Speichern</button></div><p style="font-size:11px;color:var(--text-tertiary);margin:6px 0 0">60 Sekunden vor Ablauf erscheint eine Warnung. Klicks, Touches und Tastatur setzen den Timer zurück.</p></div><div class="card" style="grid-column:1/-1"><h3>🔐 Sicherheit</h3><div class="setting-row"><label>Passwort ändern</label><button class="btn-secondary" id="toggle-pw">Ändern</button></div><form id="pw-form" style="display:none; margin-top:10px"><input type="password" id="current-pw" placeholder="Aktuelles Passwort" required><input type="password" id="new-pw" placeholder="Neues Passwort" required><button type="submit" class="btn-primary">Speichern</button><pre id="pw-result" style="margin-top:10px; word-break:break-all; font-size:12px; color:var(--text-tertiary)"></pre></form></div></div>`;
   $("#back-home")?.addEventListener("click", () => navigate("home"));
   const toggle = $("#dark-toggle");
   toggle.addEventListener("change", () => { document.body.classList.toggle("dark", toggle.checked); document.body.classList.toggle("light", !toggle.checked); localStorage.setItem("hub_theme", toggle.checked ? "dark" : "light"); });
@@ -1125,5 +1203,407 @@ function renderSettings(container) {
   const saved = localStorage.getItem("hub_theme");
   if (saved === "light") document.body.classList.replace("dark", "light");
 })();
+
+// ===================== HUB v2.1 Features =====================
+
+// --- Time-Tracking ---
+function fmtDuration(total) {
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+async function loadTimer() {
+  const body = $("#timer-body");
+  if (!body) return;
+  try {
+    const data = await getJSON("/api/timetrack");
+    appState.timer = data;
+    renderTimerBody();
+  } catch (e) { body.innerHTML = "<p class='empty-state'>Timer nicht verfügbar.</p>"; }
+}
+
+function renderTimerBody() {
+  const body = $("#timer-body");
+  if (!body || !appState.timer) return;
+  const t = appState.timer;
+  const secs = t.running ? t.current_seconds : t.elapsed_seconds;
+  body.innerHTML = `
+    <div class="timer-display ${t.running ? "running" : ""}" id="timer-display">${fmtDuration(secs)}</div>
+    <div class="timer-meta">${t.project ? `${escapeHtml(t.project)}${t.task_title ? " · " + escapeHtml(t.task_title) : ""}` : "Kein Timer aktiv"}</div>
+    <div class="row" style="display:flex;gap:6px;margin-top:10px">
+      <button class="btn-primary timer-toggle" style="flex:1">${t.running ? "■ Stopp" : "▶ Start"}</button>
+    </div>`;
+  body.querySelector(".timer-toggle").addEventListener("click", async () => {
+    if (appState.timer.running) {
+      const res = await postJSON("/api/timetrack/stop", {});
+      if (res.ok) flash("⏱ Timer gestoppt");
+    } else {
+      const name = promptWithFallback("Was arbeitest du gerade?", t.project || "");
+      if (name === null) return;
+      const res = await postJSON("/api/timetrack/start", { project: name, task: "" });
+      if (res.ok) flash(`⏱ Timer gestartet: ${name}`);
+    }
+    loadTimer();
+  });
+}
+
+function startTimerTick() {
+  setInterval(() => {
+    const el = $("#timer-display");
+    if (el && appState.timer && appState.timer.running) {
+      appState.timer.current_seconds = (appState.timer.current_seconds || 0) + 1;
+      el.textContent = fmtDuration(appState.timer.current_seconds);
+    }
+  }, 1000);
+}
+
+// --- Wasser / Health (Home-Karte) ---
+async function loadWater() {
+  const el = $("#water-body");
+  if (!el) return;
+  try {
+    const data = await getJSON("/api/health");
+    const pct = Math.min(100, Math.round(data.water / data.goal * 100));
+    el.innerHTML = `
+      <div class="water-display small ${data.done ? "done" : ""}">${data.water.toFixed(2)}L <span class="water-goal">/ ${data.goal.toFixed(2)}L</span></div>
+      <div class="progress-bar water ${data.done ? "done" : ""}"><div style="width:${pct}%"></div></div>
+      <div class="progress-text">${data.done ? "🎉 Ziel erreicht! 🎉" : `${data.remaining.toFixed(2)}L noch`}</div>
+      <div class="row" style="display:flex;gap:6px;margin-top:8px">
+        <button class="btn-secondary water-add" data-a="0.25" style="flex:1">+0.25L</button>
+        <button class="btn-secondary water-add" data-a="0.5" style="flex:1">+0.5L</button>
+        <button class="btn-secondary" id="water-open" style="flex:1">Details</button>
+      </div>`;
+    el.querySelectorAll(".water-add").forEach((b) => b.addEventListener("click", async () => {
+      const res = await postJSON("/api/health/water", { amount: parseFloat(b.dataset.a) });
+      if (res.ok) { flash("💧 +" + b.dataset.a + "L"); loadWater(); if (appState.page === "health") renderHealth($("#content")); }
+    }));
+    $("#water-open").addEventListener("click", () => navigate("health"));
+  } catch (e) { el.innerHTML = "<p class='empty-state'>Wasser nicht verfügbar.</p>"; }
+}
+
+// --- Notizen / Wiki ---
+async function renderNotes(container) {
+  container.innerHTML = `
+    <div class="back-home"><button class="btn-secondary" id="back-home">← Home</button></div>
+    <h2 class="page-title">📝 Notizen</h2>
+    <div class="note-toolbar">
+      <input type="text" id="note-search" placeholder="Notizen durchsuchen..." autocomplete="off">
+      <button class="btn-primary" id="note-new">+ Neu</button>
+    </div>
+    <div class="task-list" id="note-list">${skeletonList(5)}</div>`;
+  $("#back-home").addEventListener("click", () => navigate("home"));
+  $("#note-new").addEventListener("click", () => openNoteEditor(null));
+  let debounce;
+  $("#note-search").addEventListener("input", () => {
+    clearTimeout(debounce);
+    debounce = setTimeout(() => loadNotes(), 250);
+  });
+  await loadNotes();
+  initPullToRefresh(() => loadNotes());
+}
+
+async function loadNotes() {
+  const list = $("#note-list");
+  if (!list) return;
+  const q = $("#note-search")?.value.trim() || "";
+  try {
+    const notes = await getJSON(`/api/notes?q=${encodeURIComponent(q)}`);
+    appState.notes = notes;
+    list.innerHTML = notes.length ? notes.map(noteCard).join("") : "<p class='empty-state'>Keine Notizen. 📝</p>";
+    list.querySelectorAll(".note-card").forEach((card) => {
+      const note = () => appState.notes.find((n) => n.id === card.dataset.id);
+      card.addEventListener("click", () => { const n = note(); if (n) openNoteEditor(n); });
+      card.querySelector(".pin-btn").addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const n = note(); if (!n) return;
+        const res = await patchJSON(`/api/notes/${n.id}`, { pinned: !n.pinned });
+        if (res.ok) { flash(n.pinned ? "Nicht mehr gepinnt" : "📌 Gepinnt"); loadNotes(); }
+      });
+      card.querySelector(".del-btn").addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const n = note(); if (!n) return;
+        const ok = await confirmSheet(`Notiz „${n.title}“ löschen?`);
+        if (!ok) return;
+        const res = await deleteReq(`/api/notes/${n.id}`);
+        flash(res.ok ? "Notiz gelöscht" : "Fehler", res.ok ? "ok" : "error");
+        loadNotes();
+      });
+    });
+  } catch (e) { list.innerHTML = "<p class='empty-state'>Fehler beim Laden.</p>"; }
+}
+
+function noteCard(n) {
+  const date = new Date(n.updated_at).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit" });
+  const preview = (n.content || "").replace(/\n/g, " ").slice(0, 110);
+  return `<div class="note-card ${n.pinned ? "pinned" : ""}" data-id="${n.id}">
+    <div class="note-head">
+      <div class="note-title">${n.pinned ? "📌 " : ""}${escapeHtml(n.title)}</div>
+      <div class="note-actions"><button class="pin-btn" title="Pinnen">${n.pinned ? "📌" : "📍"}</button><button class="del-btn" title="Löschen">🗑</button></div>
+    </div>
+    ${preview ? `<div class="note-preview">${escapeHtml(preview)}</div>` : ""}
+    <div class="note-foot"><span class="badge">${escapeHtml(n.project || "Persoenlich")}</span><span class="note-date">${date}</span></div>
+  </div>`;
+}
+
+function openNoteEditor(note) {
+  const projects = ["Persoenlich", "Party Arena", "KI-Videos", "Hochzeit", "Server", "Klavier-Coach"];
+  const modal = document.createElement("div");
+  modal.className = "modal show";
+  modal.innerHTML = `<div class="modal-card wide">
+    <div class="modal-header"><h3>${note ? "✏️ Notiz bearbeiten" : "📝 Neue Notiz"}</h3><button class="close-modal">×</button></div>
+    <div class="modal-body">
+      <input type="text" id="note-title" placeholder="Titel" value="${note ? escapeHtml(note.title) : ""}" maxlength="120">
+      <select id="note-project">${projects.map((p) => `<option ${note && note.project === p ? "selected" : ""}>${p}</option>`).join("")}</select>
+      <textarea id="note-content" rows="14" placeholder="Inhalt (Markdown)...">${note ? escapeHtml(note.content || "") : ""}</textarea>
+      <button id="note-save" class="btn-primary" style="width:100%">💾 Speichern</button>
+    </div></div>`;
+  modal.addEventListener("click", (e) => { if (e.target === modal) modal.remove(); });
+  modal.querySelector(".close-modal").addEventListener("click", () => modal.remove());
+  modal.querySelector("#note-save").addEventListener("click", async () => {
+    const title = modal.querySelector("#note-title").value.trim();
+    if (!title) return flash("Titel fehlt", "error");
+    const body = { title, project: modal.querySelector("#note-project").value, content: modal.querySelector("#note-content").value };
+    const res = note ? await patchJSON(`/api/notes/${note.id}`, body) : await postJSON("/api/notes", body);
+    flash(res.ok ? "Gespeichert" : (res.error || "Fehler"), res.ok ? "ok" : "error");
+    if (res.ok) { modal.remove(); loadNotes(); }
+  });
+  document.body.appendChild(modal);
+  modal.querySelector("#note-title").focus();
+}
+
+// --- Monatsbudget ---
+async function renderBudget(container) {
+  container.innerHTML = `
+    <div class="back-home"><button class="btn-secondary" id="back-home">← Home</button></div>
+    <h2 class="page-title">💰 Budget</h2>
+    <div class="card" id="budget-summary">${skeletonCard()}</div>
+    <div class="grid grid-2" id="budget-cats" style="margin-top:10px">${skeletonGrid(4)}</div>
+    <div class="card" style="margin-top:10px">
+      <h3>💸 Ausgabe erfassen</h3>
+      <form id="expense-form" class="budget-form">
+        <select id="exp-category" required></select>
+        <input type="number" id="exp-amount" placeholder="Betrag €" step="0.01" min="0.01" required>
+        <input type="text" id="exp-note" placeholder="Notiz (optional)">
+        <button type="submit" class="btn-primary">Hinzufügen</button>
+      </form>
+    </div>
+    <div class="card" style="margin-top:10px">
+      <h3>➕ Kategorie anlegen</h3>
+      <form id="cat-form" class="budget-form">
+        <input type="text" id="cat-name" placeholder="Name z.B. Lebensmittel" required>
+        <input type="number" id="cat-limit" placeholder="Monatslimit €" step="1" min="0">
+        <button type="submit" class="btn-secondary">Anlegen</button>
+      </form>
+    </div>`;
+  $("#back-home").addEventListener("click", () => navigate("home"));
+  $("#expense-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const res = await postJSON("/api/budget/expenses", {
+      category: $("#exp-category").value,
+      amount: parseFloat($("#exp-amount").value) || 0,
+      note: $("#exp-note").value.trim(),
+    });
+    flash(res.ok ? "Ausgabe erfasst" : (res.error || "Fehler"), res.ok ? "ok" : "error");
+    if (res.ok) { $("#expense-form").reset(); loadBudget(); }
+  });
+  $("#cat-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const res = await postJSON("/api/budget/categories", {
+      name: $("#cat-name").value.trim(),
+      limit: parseFloat($("#cat-limit").value) || 0,
+    });
+    flash(res.ok ? "Kategorie angelegt" : (res.error || "Fehler"), res.ok ? "ok" : "error");
+    if (res.ok) { $("#cat-form").reset(); loadBudget(); }
+  });
+  await loadBudget();
+  initPullToRefresh(() => loadBudget());
+}
+
+async function loadBudget() {
+  const summary = $("#budget-summary"), cats = $("#budget-cats");
+  if (!summary) return;
+  try {
+    const data = await getJSON("/api/budget");
+    const pct = data.total_limit > 0 ? Math.min(100, Math.round(data.total_spent / data.total_limit * 100)) : 0;
+    summary.innerHTML = `<h3>Monat ${data.month}</h3>
+      <div style="display:flex;justify-content:space-between;align-items:baseline">
+        <div style="font-size:30px;font-weight:700">${data.total_spent.toFixed(2)}€</div>
+        <div style="color:var(--text-tertiary);font-size:13px">von ${data.total_limit.toFixed(2)}€</div>
+      </div>
+      <div class="progress-bar big ${data.over ? "over" : ""}"><div style="width:${pct}%"></div></div>
+      <div class="progress-text">${data.over ? "⚠️ Über Budget" : `${data.remaining.toFixed(2)}€ übrig`}</div>`;
+    cats.innerHTML = Object.entries(data.categories).length
+      ? Object.entries(data.categories).map(([name, c]) => {
+          const p = c.limit > 0 ? Math.min(100, Math.round(c.spent / c.limit * 100)) : 0;
+          return `<div class="card budget-cat ${c.limit > 0 && c.spent > c.limit ? "over" : ""}" data-cat="${escapeHtml(name)}">
+            <div class="budget-cat-head"><span class="name">${escapeHtml(name)}</span><button class="btn-secondary limit-btn">Limit</button></div>
+            <div style="display:flex;justify-content:space-between;font-size:13px;margin:6px 0 4px">
+              <span style="color:var(--text-secondary)">${c.spent.toFixed(2)}€</span><span style="color:var(--text-tertiary)">${c.limit > 0 ? "von " + c.limit.toFixed(2) + "€" : "kein Limit"}</span>
+            </div>
+            <div class="progress-bar ${c.limit > 0 && c.spent > c.limit ? "over" : ""}"><div style="width:${p}%"></div></div>
+          </div>`;
+        }).join("")
+      : "<p class='empty-state'>Noch keine Kategorien. Lege unten eine an.</p>";
+    const sel = $("#exp-category");
+    sel.innerHTML = Object.keys(data.categories).map((n) => `<option>${escapeHtml(n)}</option>`).join("");
+    cats.querySelectorAll(".limit-btn").forEach((btn) => btn.addEventListener("click", async () => {
+      const name = btn.closest(".budget-cat").dataset.cat;
+      const v = promptWithFallback(`Monatslimit für ${name} (€):`, data.categories[name]?.limit || "");
+      if (v === null) return;
+      const res = await patchJSON(`/api/budget/categories/${encodeURIComponent(name)}`, { limit: parseFloat(v) || 0 });
+      flash(res.ok ? "Limit gesetzt" : (res.error || "Fehler"), res.ok ? "ok" : "error");
+      if (res.ok) loadBudget();
+    }));
+  } catch (e) { summary.innerHTML = "<p class='empty-state'>Budget nicht verfügbar.</p>"; }
+}
+
+// --- Gesundheit / Wasser ---
+async function renderHealth(container) {
+  container.innerHTML = `
+    <div class="back-home"><button class="btn-secondary" id="back-home">← Home</button></div>
+    <h2 class="page-title">💧 Gesundheit</h2>
+    <div class="card" id="water-card-page">${skeletonCard()}</div>
+    <div class="card" style="margin-top:10px">
+      <h3>😴 Schlaf</h3>
+      <form id="sleep-form" class="budget-form">
+        <input type="date" id="sleep-date">
+        <input type="number" id="sleep-hours" placeholder="Stunden (z.B. 7.5)" step="0.5" min="0" max="24" required>
+        <button type="submit" class="btn-primary">Eintragen</button>
+      </form>
+      <div id="sleep-week" style="margin-top:10px">${skeletonList(7)}</div>
+    </div>`;
+  $("#back-home").addEventListener("click", () => navigate("home"));
+  const dateInput = $("#sleep-date");
+  const yest = new Date(); yest.setDate(yest.getDate() - 1);
+  dateInput.value = yest.toISOString().slice(0, 10);
+  $("#sleep-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const res = await postJSON("/api/health/sleep", { hours: parseFloat($("#sleep-hours").value) || 0, date: dateInput.value });
+    flash(res.ok ? "Schlaf eingetragen" : (res.error || "Fehler"), res.ok ? "ok" : "error");
+    if (res.ok) { $("#sleep-hours").value = ""; loadHealth(); }
+  });
+  await loadHealth();
+  initPullToRefresh(() => loadHealth());
+}
+
+async function loadHealth() {
+  const el = $("#water-card-page");
+  if (!el) return;
+  try {
+    const data = await getJSON("/api/health");
+    const pct = Math.min(100, Math.round(data.water / data.goal * 100));
+    el.innerHTML = `<h3>💧 Wasser</h3>
+      <div class="water-display ${data.done ? "done" : ""}">${data.water.toFixed(2)}L <span class="water-goal">/ ${data.goal.toFixed(2)}L</span></div>
+      <div class="progress-bar water ${data.done ? "done" : ""}"><div style="width:${pct}%"></div></div>
+      <div class="progress-text">${data.done ? "🎉 Ziel erreicht! 🎉" : `${data.remaining.toFixed(2)}L noch`}</div>
+      <div class="row" style="display:flex;gap:6px;margin-top:10px">
+        <button class="btn-secondary water-add" data-a="0.25" style="flex:1">+0.25L</button>
+        <button class="btn-secondary water-add" data-a="0.5" style="flex:1">+0.5L</button>
+        <button class="btn-secondary" id="water-goal-btn" style="flex:1">Ziel</button>
+      </div>
+      <div id="water-week" style="margin-top:12px"></div>`;
+    el.querySelectorAll(".water-add").forEach((b) => b.addEventListener("click", async () => {
+      const res = await postJSON("/api/health/water", { amount: parseFloat(b.dataset.a) });
+      if (res.ok) { flash("💧 +" + b.dataset.a + "L"); loadHealth(); if (appState.page === "home") loadWater(); }
+    }));
+    $("#water-goal-btn").addEventListener("click", async () => {
+      const v = promptWithFallback("Tagesziel (Liter):", data.goal);
+      if (v === null) return;
+      const res = await patchJSON("/api/health/goal", { goal: parseFloat(v) || 2 });
+      flash(res.ok ? "Ziel gesetzt" : (res.error || "Fehler"), res.ok ? "ok" : "error");
+      if (res.ok) { loadHealth(); if (appState.page === "home") loadWater(); }
+    });
+    const ww = Object.entries(data.week_water);
+    const max = Math.max(...ww.map(([, v]) => v), data.goal, 0.1);
+    $("#water-week").innerHTML = `<div class="bar-chart">${ww.map(([d, v]) => `<div class="bar-col"><div class="bar" style="height:${Math.max(3, Math.round(v / max * 56))}px"></div><div class="bar-label">${d.slice(8)}</div></div>`).join("")}</div>`;
+    const sleepWeek = $("#sleep-week");
+    if (sleepWeek) {
+      const sw = Object.entries(data.week_sleep);
+      const sleepMax = Math.max(...sw.map(([, v]) => v), 8, 0.1);
+      sleepWeek.innerHTML = `<div class="bar-chart sleep">${sw.map(([d, v]) => `<div class="bar-col"><div class="bar ${v > 0 ? "has" : ""}" style="height:${Math.max(3, Math.round(v / sleepMax * 56))}px"></div><div class="bar-label">${d.slice(8)}</div><div class="bar-value">${v > 0 ? v.toFixed(1) : "–"}</div></div>`).join("")}</div>`;
+    }
+  } catch (e) { el.innerHTML = "<p class='empty-state'>Health nicht verfügbar.</p>"; }
+}
+
+// --- Eisenhower-Matrix ---
+async function renderMatrixView() {
+  const panel = $("#matrix-panel");
+  if (!panel) return;
+  try {
+    let url = "/api/tasks";
+    const knownStatus = ["Offen", "Erledigt", "In Arbeit", "Blockiert"];
+    if (knownStatus.includes(appState.taskFilter) && appState.taskFilter !== "all") url += `?status=${encodeURIComponent(appState.taskFilter)}`;
+    else if (appState.taskFilter && appState.taskFilter !== "all") url += `?project=${encodeURIComponent(appState.taskFilter)}`;
+    const tasks = await getJSON(url);
+    renderMatrix(panel, tasks);
+  } catch (e) { panel.innerHTML = "<p class='empty-state'>Fehler beim Laden.</p>"; }
+}
+
+function renderMatrix(container, tasks) {
+  const prio = getTaskPrios();
+  const quads = {
+    P1: { title: "Wichtig & dringend", icon: "🔴", cls: "q1", tasks: [] },
+    P2: { title: "Wichtig, nicht dringend", icon: "🟠", cls: "q2", tasks: [] },
+    P3: { title: "Nicht wichtig, dringend", icon: "🟡", cls: "q3", tasks: [] },
+    P4: { title: "Weder wichtig noch dringend", icon: "🟢", cls: "q4", tasks: [] },
+  };
+  const none = [];
+  tasks.forEach((t) => {
+    const p = prio[t.id];
+    if (p && quads[p]) quads[p].tasks.push(t);
+    else none.push(t);
+  });
+  container.innerHTML = `
+    <div class="matrix-grid">
+      ${Object.values(quads).map((q) => `
+        <div class="matrix-quad ${q.cls}">
+          <div class="matrix-head">${q.icon} ${q.title} <span class="count">${q.tasks.length}</span></div>
+          <div class="matrix-tasks">${q.tasks.length ? q.tasks.map(taskRow).join("") : "<p class='empty-state'>Leer</p>"}</div>
+        </div>`).join("")}
+    </div>
+    ${none.length ? `<div class="card" style="margin-top:12px"><h3>Ohne Priorität — Badge antippen zum Zuweisen (P1-P4)</h3><div class="task-list">${none.map(taskRow).join("")}</div></div>` : ""}`;
+  const reload = () => { if (appState.page === "tasks") renderTasks($("#content")); };
+  bindTaskCheckboxes(container, reload);
+  initSwipe(container, reload);
+}
+
+// --- Auto-Logout ---
+function initIdleLogout() {
+  const events = ["click", "touchstart", "keydown", "mousemove", "scroll"];
+  let timer = null, warned = false;
+  const minutes = () => parseFloat(localStorage.getItem("hub_idle_minutes") || "30") || 30;
+  const reset = () => {
+    warned = false;
+    removeIdleBanner();
+    if (timer) clearTimeout(timer);
+    const ms = Math.max(1, minutes()) * 60000;
+    if (ms <= 60000) return; // unter 1 Minute: kein Auto-Logout
+    timer = setTimeout(() => {
+      warned = true;
+      showIdleBanner(minutes());
+      timer = setTimeout(() => { window.location.href = "/logout"; }, 60000);
+    }, ms - 60000);
+  };
+  events.forEach((ev) => document.addEventListener(ev, reset, { passive: true }));
+  reset();
+  window.hubIdleReset = reset;
+}
+
+function showIdleBanner(minutes) {
+  if ($("#idle-banner")) return;
+  const b = document.createElement("div");
+  b.className = "idle-banner";
+  b.id = "idle-banner";
+  b.innerHTML = `<span>⏳ ${minutes} Min. inaktiv — Abmeldung in 60s</span><button id="idle-stay">Weiter arbeiten</button>`;
+  document.body.appendChild(b);
+  $("#idle-stay").addEventListener("click", () => { removeIdleBanner(); });
+}
+
+function removeIdleBanner() {
+  const b = $("#idle-banner");
+  if (b) b.remove();
+}
 
 document.addEventListener("DOMContentLoaded", init);
