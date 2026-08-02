@@ -17,10 +17,17 @@
   <g clip-path="url(#r)">
     <rect width="512" height="512" fill="url(#bg)"/>
     <rect width="512" height="512" fill="url(#sheen)"/>
-    <g transform="translate(-40.1 -42.6) scale(24.67)" filter="url(#shadow)">
+    <g transform="translate(-23.3 -23.3) scale(23.27)" filter="url(#shadow)">
       
-        <path d="M12,3.8l8.2,6.8V19c0,0.8 -0.6,1.4 -1.4,1.4h-4.8v-5.2h-4v5.2H5.2c-0.8,0 -1.4,-0.6 -1.4,-1.4v-8.4L12,3.8z" fill="#ffffff" fill-opacity="0.96"/>
-        <path d="M12,5.6l6.4,5.3v7h-3v-5.5H8.6v5.5h-3v-7L12,5.6z" fill="#5856D6" fill-opacity="0.3"/>
+        <path d="M12,3.4l8.4,7V19c0,0.8 -0.6,1.4 -1.4,1.4h-4.9v-5.3h-4.2v5.3H5c-0.8,0 -1.4,-0.6 -1.4,-1.4v-8.6L12,3.4z" fill="#ffffff" fill-opacity="0.97"/>
+        <!-- door -->
+        <path d="M12,5.4l6.6,5.5v7h-3.1v-5.3H8.5v5.3h-3.1v-7L12,5.4z" fill="#5856D6" fill-opacity="0.3"/>
+        <path d="M10.4,15.4h3.2v5h-3.2z" fill="#5856D6"/>
+        <!-- window -->
+        <rect x="7.6" y="9.6" width="2" height="2" rx="0.4" fill="#ffffff" fill-opacity="0.85"/>
+        <rect x="14.4" y="9.6" width="2" height="2" rx="0.4" fill="#ffffff" fill-opacity="0.85"/>
+        <!-- ground -->
+        <path d="M4.2,19.8h15.6" stroke="#ffffff" stroke-width="0.9" stroke-linecap="round" fill="none" fill-opacity="0.35"/>
     
     </g>
   </g>

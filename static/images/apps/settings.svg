@@ -17,11 +17,16 @@
   <g clip-path="url(#r)">
     <rect width="512" height="512" fill="url(#bg)"/>
     <rect width="512" height="512" fill="url(#sheen)"/>
-    <g transform="translate(-67.4 -67.4) scale(26.95)" filter="url(#shadow)">
+    <g transform="translate(-36.6 -36.6) scale(24.38)" filter="url(#shadow)">
       
-        <path d="M12,4.6l1.6,1.7l0.3,0.3l0.5,0.1l2.3,-0.3l1.3,1.9l-1.4,1.8l-0.2,0.3l0.1,0.4l0.5,2.2l-1.9,1.3l-1.9,-1.3l-0.4,-0.3l-0.4,0.1l-1.9,1.4l-2,-1.3l0.5,-2.2l0.1,-0.4l-0.2,-0.3l-1.5,-1.8l1.3,-1.9l2.3,0.3l0.5,-0.1l0.3,-0.3L12,4.6z" fill="#ffffff" fill-opacity="0.96"/>
-        <circle cx="12" cy="12" r="2.4" fill="#8E8E93"/>
-        <circle cx="12" cy="12" r="1.1" fill="#ffffff"/>
+        <path d="M12,3.6l1.7,1.8l0.35,0.3l0.55,0.1l2.4,-0.35l1.5,2.1l-1.55,2l-0.25,0.35l0.15,0.45l0.6,2.3l-2.1,1.4l-2.1,-1.4l-0.45,-0.3l-0.45,0.15l-2.1,1.55l-2.2,-1.4l0.6,-2.3l0.15,-0.45l-0.25,-0.35l-1.6,-2l1.5,-2.1l2.4,0.35l0.55,-0.1l0.35,-0.3L12,3.6z" fill="#ffffff" fill-opacity="0.97"/>
+        <!-- teeth detail -->
+        <path d="M12,3.6l1.7,1.8l0.35,0.3l0.55,0.1l2.4,-0.35l1.5,2.1l-1.55,2l-0.25,0.35l0.15,0.45l0.6,2.3l-2.1,1.4l-2.1,-1.4l-0.45,-0.3l-0.45,0.15l-2.1,1.55l-2.2,-1.4l0.6,-2.3l0.15,-0.45l-0.25,-0.35l-1.6,-2l1.5,-2.1l2.4,0.35l0.55,-0.1l0.35,-0.3L12,3.6z" fill="none" stroke="#8E8E93" stroke-opacity="0.35" stroke-width="0.4"/>
+        <circle cx="12" cy="12" r="2.5" fill="#8E8E93"/>
+        <circle cx="12" cy="12" r="2.5" fill="none" stroke="#6d6d74" stroke-opacity="0.3" stroke-width="0.5"/>
+        <circle cx="12" cy="12" r="1.15" fill="#ffffff"/>
+        <!-- gloss -->
+        <path d="M9.6,6.6c0.7,-0.6 1.6,-0.9 2.4,-1" stroke="#ffffff" stroke-width="0.7" stroke-linecap="round" fill="none" fill-opacity="0.4"/>
     
     </g>
   </g>
