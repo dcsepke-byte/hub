@@ -13,6 +13,7 @@ from app import notion, weather, explorer
 from app import hermes, search as search_module, news, calendar, lists
 from app import projects as projects_module, stocks
 from app import notes, budget, timetrack, health
+from app import chats as chats_module
 
 PROJECTS_DATA = []
 
@@ -509,6 +510,73 @@ def api_add_stock():
 @require_login
 def api_delete_stock(symbol):
     return jsonify(stocks.remove_symbol(symbol))
+
+
+# --- Hermes Chats (Multi-Thread) ---
+
+@app.route("/api/chats")
+@require_login
+def api_chats():
+    return jsonify(chats_module.list_threads())
+
+
+@app.route("/api/chats", methods=["POST"])
+@require_login
+def api_create_chat():
+    data = request.get_json(silent=True) or {}
+    title = str(data.get("title", "")).strip() or "Neuer Chat"
+    project = str(data.get("project", "")).strip()
+    return jsonify(chats_module.create_thread(title, project))
+
+
+@app.route("/api/chats/<thread_id>")
+@require_login
+def api_chat_detail(thread_id):
+    thread = chats_module.get_thread(thread_id)
+    if not thread:
+        return jsonify({"ok": False, "error": "Chat nicht gefunden"}), 404
+    return jsonify(thread)
+
+
+@app.route("/api/chats/<thread_id>", methods=["PATCH"])
+@require_login
+def api_rename_chat(thread_id):
+    data = request.get_json(silent=True) or {}
+    title = str(data.get("title", "")).strip()
+    if not title:
+        return jsonify({"ok": False, "error": "Titel fehlt"}), 400
+    return jsonify(chats_module.rename_thread(thread_id, title))
+
+
+@app.route("/api/chats/<thread_id>", methods=["DELETE"])
+@require_login
+def api_delete_chat(thread_id):
+    return jsonify(chats_module.delete_thread(thread_id))
+
+
+@app.route("/api/chats/<thread_id>/messages", methods=["POST"])
+@require_login
+def api_chat_message(thread_id):
+    data = request.get_json(silent=True) or {}
+    content = str(data.get("content", "")).strip()
+    if not content:
+        return jsonify({"ok": False, "error": "Nachricht fehlt"}), 400
+    thread = chats_module.get_thread(thread_id)
+    if not thread:
+        return jsonify({"ok": False, "error": "Chat nicht gefunden"}), 404
+
+    # Verlauf: letzte 11 Nachrichten + neue User-Nachricht = letzte 12
+    history = [{"role": m["role"], "content": m["content"]} for m in thread.get("messages", [])[-11:]]
+    history.append({"role": "user", "content": content})
+    user_msg = chats_module.add_message(thread_id, "user", content)
+
+    res = hermes.answer_user_question(history)
+    if res.get("ok"):
+        text = res["text"]
+    else:
+        text = f"Hermes ist gerade nicht erreichbar: {res.get('error', 'Unbekannter Fehler')}"
+    assistant_msg = chats_module.add_message(thread_id, "assistant", text)
+    return jsonify({"ok": True, "user": user_msg, "assistant": assistant_msg})
 
 
 @socketio.on("chat_message")

@@ -1,5 +1,5 @@
 const currentPage = "{{ page }}";
-let appState = { page: currentPage, projectFilter: null, taskFilter: "all", taskView: "list", path: "", projectDetail: null, activeList: "Einkauf", explorerView: "grid", notes: [], timer: null };
+let appState = { page: currentPage, projectFilter: null, taskFilter: "all", taskView: "list", path: "", projectDetail: null, activeList: "Einkauf", explorerView: "grid", notes: [], timer: null, chatThreadId: null };
 let socket = null;
 let chatHistory = [];
 let autoRefreshTimer = null;
@@ -77,6 +77,8 @@ const PAGES = {
   notes: renderNotes,
   budget: renderBudget,
   health: renderHealth,
+  chat: renderChat,
+  chatthread: renderChatThread,
 };
 
 function init() {
@@ -408,7 +410,7 @@ function bindAppClicks() {
       else if (id === "projects") navigate("projects");
       else if (id === "todo") navigate("tasks");
       else if (id === "explorer") navigate("explorer");
-      else if (id === "chat") $(".chat-widget")?.classList.add("expanded");
+      else if (id === "chat") navigate("chat");
       else if (id === "settings") navigate("settings");
       else if (id === "notizen") navigate("notes");
       else if (id === "budget") navigate("budget");
@@ -807,7 +809,7 @@ async function editProject(id) {
 async function renderProjectDetail(container) {
   const id = appState.projectDetail;
   if (!id) { navigate("projects"); return; }
-  container.innerHTML = `<div class="back-home"><button class="btn-secondary" id="back-home">← Home</button> <button class="btn-secondary" id="back-projects">← Projekte</button></div>
+  container.innerHTML = `<div class="back-home"><button class="btn-secondary" id="back-home">← Home</button> <button class="btn-secondary" id="back-projects">← Projekte</button> <button class="btn-secondary" id="pd-chat-btn" style="display:none">💬 Chat</button></div>
     <h2 class="page-title" id="pd-title"></h2><div class="grid grid-2"><div class="card"><h3>📋 Offene Tasks</h3><div id="pd-tasks" class="loader"></div></div><div class="card"><h3>📅 Kommende Termine</h3><div id="pd-events" class="loader"></div></div><div class="card" style="grid-column:1/-1"><h3>🔗 Links</h3><div id="pd-links" class="loader"></div></div></div>`;
   $("#back-home")?.addEventListener("click", () => navigate("home"));
   $("#back-projects")?.addEventListener("click", () => navigate("projects"));
@@ -815,6 +817,11 @@ async function renderProjectDetail(container) {
     const p = await getJSON(`/api/projects/${id}`);
     $("#pd-title").textContent = `${p.icon} ${p.name}`;
     $("#pd-title").style.color = p.color;
+    const chatBtn = $("#pd-chat-btn");
+    if (chatBtn) {
+      chatBtn.style.display = "";
+      chatBtn.addEventListener("click", () => openOrCreateProjectChat(p.name));
+    }
     const tasksEl = $("#pd-tasks"); tasksEl.classList.remove("loader");
     tasksEl.innerHTML = p.tasks?.length ? p.tasks.map(taskRow).join("") : "<p class='empty-state'>Keine offenen Tasks.</p>";
     bindTaskCheckboxes(tasksEl, () => renderProjectDetail(container));
@@ -1604,6 +1611,264 @@ function showIdleBanner(minutes) {
 function removeIdleBanner() {
   const b = $("#idle-banner");
   if (b) b.remove();
+}
+
+// --- Hermes Chats (Multi-Thread) ---
+let chatThreadsCache = [];
+let chatSending = false;
+
+function chatTime(iso) {
+  if (!iso) return "";
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "";
+    const now = new Date();
+    const sameDay = d.toDateString() === now.toDateString();
+    if (sameDay) return d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+    const diffDays = Math.floor((now - d) / 86400000);
+    if (diffDays === 1) return "Gestern";
+    if (diffDays < 7) return d.toLocaleDateString("de-DE", { weekday: "short" });
+    return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
+  } catch (e) { return ""; }
+}
+
+async function renderChat(container) {
+  container.innerHTML = `
+    <div class="back-home"><button class="btn-secondary" id="back-home">← Home</button></div>
+    <h2 class="page-title">💬 Hermes Chats</h2>
+    <input type="search" class="chat-search" id="chat-search" placeholder="Chats durchsuchen..." autocomplete="off">
+    <div class="chat-actions">
+      <button class="btn-primary" id="chat-new">＋ Neuer Chat</button>
+      <select class="chat-project-select" id="chat-project-select" aria-label="Chat zum Projekt"><option value="">💼 Chat zum Projekt...</option></select>
+    </div>
+    <div class="chat-thread-list" id="chat-thread-list">${skeletonList(5)}</div>`;
+  $("#back-home")?.addEventListener("click", () => navigate("home"));
+  $("#chat-search")?.addEventListener("input", (e) => filterChatThreads(e.target.value));
+  $("#chat-new")?.addEventListener("click", async () => {
+    const res = await postJSON("/api/chats", { title: "Allgemein" });
+    if (res && res.id) { appState.chatThreadId = res.id; navigate("chatthread"); }
+    else flash(res?.error || "Chat konnte nicht erstellt werden", "error");
+  });
+  $("#chat-project-select")?.addEventListener("focus", loadChatProjectOptions);
+  $("#chat-project-select")?.addEventListener("change", async (e) => {
+    const name = e.target.value;
+    e.target.value = "";
+    if (!name) return;
+    await openOrCreateProjectChat(name);
+  });
+  initPullToRefresh(() => loadChatThreads());
+  await loadChatThreads();
+  loadChatProjectOptions();
+}
+
+async function loadChatProjectOptions() {
+  const sel = $("#chat-project-select");
+  if (!sel || sel.dataset.loaded) return;
+  try {
+    const projects = await getJSON("/api/projects");
+    sel.dataset.loaded = "1";
+    sel.innerHTML = `<option value="">💼 Chat zum Projekt...</option>${projects.map((p) => `<option value="${escapeHtml(p.name)}">${escapeHtml(p.icon || "💼")} ${escapeHtml(p.name)}</option>`).join("")}`;
+  } catch (e) { /* Projekte optional */ }
+}
+
+async function loadChatThreads() {
+  const list = $("#chat-thread-list");
+  if (!list) return;
+  try {
+    chatThreadsCache = await getJSON("/api/chats");
+    renderChatThreadList(list, chatThreadsCache, $("#chat-search")?.value || "");
+  } catch (e) {
+    list.innerHTML = "<p class='empty-state'>Chats konnten nicht geladen werden.</p>";
+  }
+}
+
+function filterChatThreads(q) {
+  const list = $("#chat-thread-list");
+  if (!list) return;
+  renderChatThreadList(list, chatThreadsCache, q);
+}
+
+function renderChatThreadList(list, threads, q) {
+  const query = (q || "").trim().toLowerCase();
+  const filtered = query
+    ? threads.filter((t) => ((t.title || "") + " " + (t.project || "")).toLowerCase().includes(query))
+    : threads;
+  if (!filtered.length) {
+    list.innerHTML = `<div class="chat-empty"><div class="emoji">💬</div><div>${query ? "Keine Chats gefunden." : "Noch keine Chats. Starte dein erstes Gespräch mit Hermes!"}</div><button class="btn-primary" id="chat-empty-new">＋ Neuen Chat starten</button></div>`;
+    $("#chat-empty-new")?.addEventListener("click", async () => {
+      const res = await postJSON("/api/chats", { title: "Allgemein" });
+      if (res && res.id) { appState.chatThreadId = res.id; navigate("chatthread"); }
+    });
+    return;
+  }
+  list.innerHTML = filtered.map((t) => `
+    <div class="chat-thread-card" data-id="${escapeHtml(t.id)}">
+      <div class="chat-thread-main">
+        <div class="chat-thread-title">${escapeHtml(t.title)}</div>
+        <div class="chat-thread-preview">${escapeHtml(t.last_preview || "Noch keine Nachrichten")}</div>
+      </div>
+      <div class="chat-thread-meta">
+        ${t.project ? `<span class="chat-project-badge">${escapeHtml(t.project)}</span>` : ""}
+        <span class="chat-thread-time">${chatTime(t.updated_at)}</span>
+        <span class="chat-thread-count">${t.message_count || 0} 💬</span>
+      </div>
+      <button class="chat-thread-menu" aria-label="Chat-Menü">⋯</button>
+    </div>`).join("");
+  list.querySelectorAll(".chat-thread-card").forEach((card) => {
+    card.addEventListener("click", (e) => {
+      if (e.target.closest(".chat-thread-menu")) return;
+      appState.chatThreadId = card.dataset.id;
+      navigate("chatthread");
+    });
+    card.querySelector(".chat-thread-menu").addEventListener("click", async () => {
+      const title = card.querySelector(".chat-thread-title").textContent;
+      const choice = await showActionSheet(title, [
+        { label: "✏️ Umbenennen", value: "rename" },
+        { label: "Löschen", value: "delete", destructive: true },
+        { label: "Abbrechen", value: "", cancel: true },
+      ]);
+      if (choice === "rename") {
+        const name = promptWithFallback("Neuer Name:", title);
+        if (name === null || !name.trim()) return;
+        const res = await patchJSON(`/api/chats/${encodeURIComponent(card.dataset.id)}`, { title: name.trim() });
+        flash(res.ok ? "Umbenannt" : (res.error || "Fehler"), res.ok ? "ok" : "error");
+        if (res.ok) loadChatThreads();
+      } else if (choice === "delete") {
+        const ok = await confirmSheet(`Chat "${title}" wirklich löschen?`);
+        if (!ok) return;
+        const res = await deleteReq(`/api/chats/${encodeURIComponent(card.dataset.id)}`);
+        flash(res.ok ? "Chat gelöscht" : (res.error || "Fehler"), res.ok ? "ok" : "error");
+        if (res.ok) loadChatThreads();
+      }
+    });
+  });
+}
+
+async function openOrCreateProjectChat(name) {
+  try {
+    const threads = await getJSON("/api/chats");
+    const existing = threads.find((t) => t.project === name);
+    if (existing) { appState.chatThreadId = existing.id; navigate("chatthread"); return; }
+    const res = await postJSON("/api/chats", { title: name, project: name });
+    if (res && res.id) { appState.chatThreadId = res.id; navigate("chatthread"); }
+    else flash(res?.error || "Chat konnte nicht erstellt werden", "error");
+  } catch (e) { flash("Fehler beim Öffnen des Projekt-Chats", "error"); }
+}
+
+function renderMsgBubble(m) {
+  const cls = m.role === "user" ? "user" : "hermes";
+  return `<div class="msg-bubble ${cls}">${escapeHtml(m.content)}<div class="msg-meta">${chatTime(m.ts)}</div></div>`;
+}
+
+async function renderChatThread(container) {
+  const id = appState.chatThreadId;
+  if (!id) { navigate("chat"); return; }
+  container.innerHTML = `
+    <div class="chat-view">
+      <div class="chat-view-header">
+        <button class="btn-secondary chat-back" id="chat-back" aria-label="Zurück">←</button>
+        <div class="chat-view-title" id="chat-view-title">…</div>
+        <button class="chat-thread-menu" id="chat-thread-menu" aria-label="Chat-Menü">⋯</button>
+      </div>
+      <div class="chat-msgs" id="chat-msgs">${skeletonList(6)}</div>
+      <div class="chat-composer">
+        <textarea id="chat-msg-input" rows="1" placeholder="Nachricht an Hermes..." autocomplete="off"></textarea>
+        <button id="chat-send" aria-label="Senden">➤</button>
+      </div>
+    </div>`;
+  $("#chat-back")?.addEventListener("click", () => navigate("chat"));
+  $("#chat-thread-menu")?.addEventListener("click", openThreadMenu);
+  const input = $("#chat-msg-input");
+  const send = $("#chat-send");
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChatMessage(); }
+  });
+  input.addEventListener("input", () => {
+    input.style.height = "auto";
+    input.style.height = Math.min(input.scrollHeight, 120) + "px";
+  });
+  send.addEventListener("click", sendChatMessage);
+  try {
+    const thread = await getJSON(`/api/chats/${encodeURIComponent(id)}`);
+    const titleEl = $("#chat-view-title");
+    if (titleEl) {
+      titleEl.textContent = thread.title || "Chat";
+      if (thread.project) {
+        const badge = document.createElement("span");
+        badge.className = "chat-project-badge";
+        badge.textContent = thread.project;
+        titleEl.appendChild(badge);
+      }
+    }
+    const msgs = $("#chat-msgs");
+    if (msgs) {
+      msgs.innerHTML = (thread.messages || []).map(renderMsgBubble).join("") || "<p class='empty-state'>Noch keine Nachrichten. Frag Hermes etwas!</p>";
+      msgs.scrollTop = msgs.scrollHeight;
+    }
+  } catch (e) {
+    const msgs = $("#chat-msgs");
+    if (msgs) msgs.innerHTML = "<p class='empty-state'>Chat konnte nicht geladen werden.</p>";
+  }
+}
+
+async function openThreadMenu() {
+  const title = $("#chat-view-title")?.textContent || "Chat";
+  const choice = await showActionSheet(title, [
+    { label: "✏️ Umbenennen", value: "rename" },
+    { label: "Löschen", value: "delete", destructive: true },
+    { label: "Abbrechen", value: "", cancel: true },
+  ]);
+  if (choice === "rename") {
+    const name = promptWithFallback("Neuer Name:", title);
+    if (name === null || !name.trim()) return;
+    const res = await patchJSON(`/api/chats/${encodeURIComponent(appState.chatThreadId)}`, { title: name.trim() });
+    flash(res.ok ? "Umbenannt" : (res.error || "Fehler"), res.ok ? "ok" : "error");
+    if (res.ok) $("#chat-view-title")?.replaceChildren(document.createTextNode(name.trim()));
+  } else if (choice === "delete") {
+    const ok = await confirmSheet(`Chat "${title}" wirklich löschen?`);
+    if (!ok) return;
+    const res = await deleteReq(`/api/chats/${encodeURIComponent(appState.chatThreadId)}`);
+    flash(res.ok ? "Chat gelöscht" : (res.error || "Fehler"), res.ok ? "ok" : "error");
+    if (res.ok) navigate("chat");
+  }
+}
+
+async function sendChatMessage() {
+  if (chatSending) return;
+  const input = $("#chat-msg-input");
+  const msgs = $("#chat-msgs");
+  if (!input || !msgs) return;
+  const text = input.value.trim();
+  if (!text) return;
+  chatSending = true;
+  input.value = "";
+  input.style.height = "auto";
+  input.disabled = true;
+  $("#chat-send").disabled = true;
+  // Optimistisch lokal anhängen, dann Antwort vom POST abwarten
+  msgs.insertAdjacentHTML("beforeend", renderMsgBubble({ role: "user", content: text, ts: new Date().toISOString() }));
+  const typing = document.createElement("div");
+  typing.className = "typing-indicator";
+  typing.innerHTML = "<span></span><span></span><span></span>";
+  msgs.appendChild(typing);
+  msgs.scrollTop = msgs.scrollHeight;
+  try {
+    const res = await postJSON(`/api/chats/${encodeURIComponent(appState.chatThreadId)}/messages`, { content: text });
+    typing.remove();
+    if (res && res.ok && res.assistant) {
+      msgs.insertAdjacentHTML("beforeend", renderMsgBubble(res.assistant));
+    } else {
+      msgs.insertAdjacentHTML("beforeend", renderMsgBubble({ role: "hermes", content: res?.error || "Fehler bei der Antwort.", ts: new Date().toISOString() }));
+    }
+  } catch (e) {
+    typing.remove();
+    msgs.insertAdjacentHTML("beforeend", renderMsgBubble({ role: "hermes", content: "Antwort fehlgeschlagen. Bitte erneut versuchen.", ts: new Date().toISOString() }));
+  }
+  msgs.scrollTop = msgs.scrollHeight;
+  chatSending = false;
+  input.disabled = false;
+  $("#chat-send").disabled = false;
+  input.focus();
 }
 
 document.addEventListener("DOMContentLoaded", init);
