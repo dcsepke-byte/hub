@@ -4,38 +4,55 @@ from typing import Optional
 import requests
 from app.config import Config
 
+# DeepSeek ist der Primärprovider, Ollama Cloud der Fallback
+DEEPSEEK_BASE = os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1")
+DEEPSEEK_MODEL = os.environ.get("DEEPSEEK_MODEL", "deepseek-v4-flash")
 OLLAMA_BASE = os.environ.get("OLLAMA_BASE_URL", "https://ollama.com/v1")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "kimi-k2.7-code")
 
 
-def chat_completion(messages: list[dict], stream: bool = False, timeout: int = 60) -> dict:
-    """Send messages to Ollama Cloud-compatible API."""
-    api_key = os.environ.get("OLLAMA_API_KEY") or os.environ.get("OPENAI_API_KEY") or ""
+def _chat_completion(messages, base, model, api_key, stream=False, timeout=60):
+    """Send messages to an OpenAI-compatible API."""
     if not api_key:
         return {"ok": False, "error": "Kein API-Key für KI-Anfragen konfiguriert."}
-
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-
-    # Ollama Cloud uses OpenAI-compatible /v1/chat/completions
-    url = f"{OLLAMA_BASE.rstrip('/')}/chat/completions"
-    body = {
-        "model": OLLAMA_MODEL,
-        "messages": messages,
-        "stream": stream,
-        "temperature": 0.7,
-    }
-
+    url = f"{base.rstrip('/')}/chat/completions"
+    body = {"model": model, "messages": messages, "stream": stream, "temperature": 0.7}
     try:
         r = requests.post(url, headers=headers, json=body, timeout=timeout)
         if not r.ok:
             return {"ok": False, "error": f"HTTP {r.status_code}: {r.text[:200]}"}
         data = r.json()
         content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-        return {"ok": True, "text": content.strip(), "model": data.get("model", OLLAMA_MODEL)}
+        return {"ok": True, "text": content.strip(), "model": data.get("model", model)}
     except requests.exceptions.Timeout:
         return {"ok": False, "error": "KI-Antwort hat zu lange gedauert."}
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
+
+def chat_completion(messages: list[dict], stream: bool = False, timeout: int = 60) -> dict:
+    """DeepSeek zuerst, bei Fehler Fallback auf Ollama Cloud."""
+    # Primär: DeepSeek
+    deepseek_key = os.environ.get("DEEPSEEK_API_KEY") or ""
+    if deepseek_key:
+        res = _chat_completion(messages, DEEPSEEK_BASE, DEEPSEEK_MODEL, deepseek_key, stream, timeout)
+        if res.get("ok"):
+            return res
+        # Bei DeepSeek-Fehler → Fallback Ollama
+        fallback_reason = res.get("error", "")
+    else:
+        fallback_reason = "kein DEEPSEEK_API_KEY"
+
+    # Fallback: Ollama Cloud
+    ollama_key = os.environ.get("OLLAMA_API_KEY") or ""
+    if ollama_key:
+        res2 = _chat_completion(messages, OLLAMA_BASE, OLLAMA_MODEL, ollama_key, stream, timeout)
+        if res2.get("ok"):
+            return res2
+        return {"ok": False, "error": f"DeepSeek: {fallback_reason}; Ollama: {res2.get('error', 'unbekannt')}"}
+
+    return {"ok": False, "error": f"DeepSeek: {fallback_reason}; kein OLLAMA_API_KEY"}
 
 
 def generate_daily_report(tasks: list[dict], weather_text: str) -> str:
