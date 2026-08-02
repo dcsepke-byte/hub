@@ -1,7 +1,7 @@
 """
-Premium SVG app icons for HUB — v2.
-Each icon: 512x512, diagonal 3-stop gradient, layered depth (inner shadow, gloss,
-background sparkle texture), detailed multi-color symbol.
+Premium SVG app icons for HUB — v3 (modern Apple-style).
+Clean, minimal, iOS 18 system colors, subtle same-family gradients, big centered symbols.
+No sparkles, no heavy shadows — premium = restraint.
 """
 import os
 
@@ -9,212 +9,169 @@ BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(BASE, "static", "images", "apps")
 os.makedirs(OUT, exist_ok=True)
 
-# Per-app config: gradients (3 stops), symbol paths (white + accents), sparkle seed
+# Apple iOS 18 system colors — modern, saturated, same-family gradients
 APPS = {}
 
 APPS["party-arena"] = {
-    "grad": ("#FF2D55", "#FF5E7E", "#FF8FA3"),
+    "grad": ("#FF375F", "#FF6B8A"),  # systemPink
     "symbol": """
       <g transform="translate(136 136) scale(10)">
-        <!-- D-Pad + shell -->
-        <path d="M6.5,8.5c-0.8,0 -1.5,0.7 -1.5,1.5v4c0,0.8 0.7,1.5 1.5,1.5h11c0.8,0 1.5,-0.7 1.5,-1.5v-4c0,-0.8 -0.7,-1.5 -1.5,-1.5h-11z" fill="#ffffff" fill-opacity="0.97"/>
-        <path d="M6.5,9.2c-0.45,0 -0.8,0.35 -0.8,0.8v3.9c0,0.45 0.35,0.8 0.8,0.8h10.9c0.45,0 0.8,-0.35 0.8,-0.8v-3.9c0,-0.45 -0.35,-0.8 -0.8,-0.8h-10.9z" fill="#FF2D55" fill-opacity="0.28"/>
-        <path d="M8.5,8.5v-1.3c0,-0.5 0.4,-0.9 0.9,-0.9h5.2c0.5,0 0.9,0.4 0.9,0.9v1.3h-2v-1h-3v1h-2z" fill="#ffffff" fill-opacity="0.97"/>
-        <rect x="8.6" y="8.5" width="6.8" height="1.6" rx="0.6" fill="#ffffff"/>
-        <circle cx="7.3" cy="12" r="1.35" fill="#FF8FA3"/>
-        <circle cx="16.7" cy="12" r="1.35" fill="#FF8FA3"/>
-        <circle cx="12" cy="14.2" r="0.9" fill="#FF2D55"/>
-        <circle cx="10" cy="12" r="0.9" fill="#FF2D55"/>
-        <circle cx="14" cy="12" r="0.9" fill="#FF2D55"/>
+        <rect x="4.5" y="8.5" width="15" height="6.6" rx="3.3" fill="#ffffff" fill-opacity="0.96"/>
+        <rect x="4.5" y="8.5" width="15" height="2.4" rx="1.2" fill="#ffffff"/>
+        <circle cx="7" cy="11.8" r="1.1" fill="#FF375F"/>
+        <circle cx="17" cy="11.8" r="1.1" fill="#FF375F"/>
+        <circle cx="12" cy="13.6" r="0.95" fill="#FF6B8A"/>
+        <path d="M8.8,11.8h6.4" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round"/>
       </g>
     """,
-    "spark": "M100,90m-3,0a3,3 0 1,0 6,0a3,3 0 1,0 -6,0M412,120m-2.5,0a2.5,2.5 0 1,0 5,0a2.5,2.5 0 1,0 -5,0",
 }
 
 APPS["piano-coach"] = {
-    "grad": ("#5E5CE6", "#7A6FE8", "#A78BFA"),
+    "grad": ("#5856D6", "#7A7AF0"),  # systemIndigo
     "symbol": """
       <g transform="translate(136 136) scale(10)">
-        <rect x="4" y="6.5" width="16" height="11" rx="2" fill="#ffffff" fill-opacity="0.97"/>
-        <rect x="4" y="6.5" width="16" height="2.6" fill="#E9E4FF"/>
-        <path d="M7,9.1v8.4h2V9.1h-2zM11,9.1v8.4h2V9.1h-2zM15,9.1v8.4h2V9.1h-2z" fill="#2d2a3e"/>
-        <rect x="6.9" y="8.9" width="1.4" height="2.8" rx="0.3" fill="#2d2a3e"/>
-        <rect x="10.9" y="8.9" width="1.4" height="2.8" rx="0.3" fill="#2d2a3e"/>
-        <rect x="14.9" y="8.9" width="1.4" height="2.8" rx="0.3" fill="#2d2a3e"/>
-        <rect x="4.4" y="6.9" width="15.2" height="0.5" rx="0.25" fill="#ffffff" fill-opacity="0.8"/>
+        <rect x="4" y="6.5" width="16" height="11" rx="2.2" fill="#ffffff" fill-opacity="0.96"/>
+        <rect x="7" y="9" width="1.5" height="8.5" fill="#5856D6"/>
+        <rect x="11" y="9" width="1.5" height="8.5" fill="#5856D6"/>
+        <rect x="15" y="9" width="1.5" height="8.5" fill="#5856D6"/>
+        <rect x="7" y="6.5" width="16" height="2.4" rx="1.2" fill="#ffffff" fill-opacity="0.5"/>
       </g>
     """,
-    "spark": "M96,96m-2.5,0a2.5,2.5 0 1,0 5,0a2.5,2.5 0 1,0 -5,0M416,120m-2,0a2,2 0 1,0 4,0a2,2 0 1,0 -4,0",
 }
 
 APPS["bangkok"] = {
-    "grad": ("#E8590C", "#F76707", "#FFA94D"),
+    "grad": ("#FF9500", "#FFB340"),  # systemOrange
     "symbol": """
       <g transform="translate(136 136) scale(10)">
-        <!-- Temple silhouette -->
-        <path d="M7.4,15.5l0.3,-1.2c0.2,-0.9 1,-1.6 1.9,-1.8l0.4,-1.1l1.4,-0.6l0.3,-1.9l1.5,-1.5l1.5,1.5l0.3,1.9l1.4,0.6l0.4,1.1c0.9,0.2 1.7,0.9 1.9,1.8l0.3,1.2h-11.6z" fill="#ffffff" fill-opacity="0.97"/>
-        <path d="M12,9.4l0.9,0.9l-0.2,2.3l-0.7,0.4l-0.7,-0.4l-0.2,-2.3l0.9,-0.9z" fill="#FFA94D"/>
-        <path d="M6.8,15.5l10.4,0l-0.2,1.1c-0.1,0.5 -0.5,0.9 -1,0.9h-8c-0.5,0 -0.9,-0.4 -1,-0.9l-0.2,-1.1z" fill="#ffffff" fill-opacity="0.7"/>
+        <path d="M7.2,14.5l0.5,-1.6c0.3,-1 1.2,-1.7 2.2,-1.9l0.6,-1.6l1.5,-0.5l0.3,-2l1.3,-1.3l1.3,1.3l0.3,2l1.5,0.5l0.6,1.6c1,0.2 1.9,0.9 2.2,1.9l0.5,1.6h-12.8z" fill="#ffffff" fill-opacity="0.96"/>
+        <path d="M8.2,14.5h7.6l-0.3,1c-0.2,0.7 -0.8,1.1 -1.5,1.1h-4c-0.7,0 -1.3,-0.4 -1.5,-1.1l-0.3,-1z" fill="#ffffff" fill-opacity="0.75"/>
       </g>
     """,
-    "spark": "M104,92m-2.5,0a2.5,2.5 0 1,0 5,0a2.5,2.5 0 1,0 -5,0M400,400m-3,0a3,3 0 1,0 6,0a3,3 0 1,0 -6,0",
 }
 
 APPS["notizen"] = {
-    "grad": ("#0CA678", "#12B886", "#63E6BE"),
+    "grad": ("#FFD60A", "#FFE566"),  # systemYellow
     "symbol": """
       <g transform="translate(136 136) scale(10)">
-        <path d="M5,4h9l6,6v10c0,1.1 -0.9,2 -2,2H5c-1.1,0 -2,-0.9 -2,-2V6c0,-1.1 0.9,-2 2,-2z" fill="#ffffff" fill-opacity="0.97"/>
-        <path d="M14,4l6,6h-5c-0.55,0 -1,-0.45 -1,-1V4z" fill="#0CA678" fill-opacity="0.55"/>
-        <path d="M7,13h7v1.5H7V13zM7,16.5h7V18H7v-1.5z" fill="#0CA678" fill-opacity="0.7"/>
-        <!-- pencil -->
-        <path d="M16.2,7.4l2.2,2.2l-4.6,4.6l-2.6,0.5l0.5,-2.6l4.5,-4.7z" fill="#FFD43B"/>
-        <path d="M17.4,6.2l1.4,1.4l-0.8,0.8l-1.4,-1.4l0.8,-0.8z" fill="#FFC078"/>
+        <path d="M5,4.2h9l6,6v9.6c0,1 -0.8,1.8 -1.8,1.8H5c-1,0 -1.8,-0.8 -1.8,-1.8V6c0,-1 0.8,-1.8 1.8,-1.8z" fill="#ffffff" fill-opacity="0.96"/>
+        <path d="M13.5,4.2l6,6h-4.8c-0.7,0 -1.2,-0.5 -1.2,-1.2V4.2z" fill="#FFD60A" fill-opacity="0.4"/>
+        <path d="M7,12.5h7v1.6H7zM7,16h7v1.6H7z" fill="#FFD60A" fill-opacity="0.85"/>
+        <path d="M15.8,7.2l2.2,2.2l-4.8,4.8l-2.7,0.5l0.5,-2.7l4.8,-4.8z" fill="#ffffff"/>
+        <path d="M17,6l1.2,1.2l-0.9,0.9l-1.2,-1.2L17,6z" fill="#FFF9DB"/>
       </g>
     """,
-    "spark": "M90,110m-2,0a2,2 0 1,0 4,0a2,2 0 1,0 -4,0M420,90m-2.5,0a2.5,2.5 0 1,0 5,0a2.5,2.5 0 1,0 -5,0",
 }
 
 APPS["projects"] = {
-    "grad": ("#AF52DE", "#C56CF0", "#E5A7FF"),
+    "grad": ("#AF52DE", "#C47FF0"),  # systemPurple
     "symbol": """
       <g transform="translate(136 136) scale(10)">
-        <path d="M4,8h5l2,2h9c1.1,0 2,0.9 2,2v7c0,1.1 -0.9,2 -2,2H4c-1.1,0 -2,-0.9 -2,-2v-9c0,-1.1 0.9,-2 2,-2z" fill="#ffffff" fill-opacity="0.97"/>
-        <path d="M5,10h5.2l1,1H5v-1z" fill="#AF52DE" fill-opacity="0.5"/>
-        <path d="M8.5,15.5l1,1l2.3,-2.3l1.7,1.7l1.7,-1.7l2.6,2.6v1.2H8.5v-2.5z" fill="#C56CF0" fill-opacity="0.65"/>
-        <path d="M8.5,15.5l0.6,0.6l2.3,-2.3l1.7,1.7l1.7,-1.7l2.6,2.6" fill="none" stroke="#ffffff" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M4,8.5h5.2l2,2H20c0.9,0 1.6,0.7 1.6,1.6v6.3c0,0.9 -0.7,1.6 -1.6,1.6H4c-0.9,0 -1.6,-0.7 -1.6,-1.6v-8.3c0,-0.9 0.7,-1.6 1.6,-1.6z" fill="#ffffff" fill-opacity="0.96"/>
+        <path d="M8,15.2l1.1,1.1l2.4,-2.4l1.8,1.8l2.7,-2.7l2.2,2.2v1.3H8v-1.3z" fill="none" stroke="#AF52DE" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M8,18.6h8" stroke="#AF52DE" stroke-opacity="0.4" stroke-width="1.1" stroke-linecap="round"/>
       </g>
     """,
-    "spark": "M100,100m-2.5,0a2.5,2.5 0 1,0 5,0a2.5,2.5 0 1,0 -5,0M410,110m-2,0a2,2 0 1,0 4,0a2,2 0 1,0 -4,0",
 }
 
 APPS["todo"] = {
-    "grad": ("#2BB673", "#37C97E", "#5BE7A0"),
+    "grad": ("#30D158", "#5CE084"),  # systemGreen
     "symbol": """
       <g transform="translate(136 136) scale(10)">
-        <circle cx="12" cy="12" r="9.2" fill="#ffffff" fill-opacity="0.97"/>
-        <circle cx="12" cy="12" r="7.6" fill="none" stroke="#2BB673" stroke-opacity="0.35" stroke-width="1.1"/>
-        <path d="M8.2,12.4l2.4,2.4l5.2,-5.4" fill="none" stroke="#0B8F4E" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M8.2,12.4l2.4,2.4l5.2,-5.4" fill="none" stroke="#ffffff" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="12" cy="12" r="9.4" fill="#ffffff" fill-opacity="0.96"/>
+        <path d="M8.4,12.4l2.3,2.3l4.9,-5.2" fill="none" stroke="#30D158" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
       </g>
     """,
-    "spark": "M96,400m-2,0a2,2 0 1,0 4,0a2,2 0 1,0 -4,0M404,94m-2.5,0a2.5,2.5 0 1,0 5,0a2.5,2.5 0 1,0 -5,0",
 }
 
 APPS["explorer"] = {
-    "grad": ("#0A84FF", "#2E9BFF", "#6FC4FF"),
+    "grad": ("#0A84FF", "#4DA6FF"),  # systemBlue
     "symbol": """
       <g transform="translate(136 136) scale(10)">
-        <path d="M4,8h5l2,2h9c1.1,0 2,0.9 2,2v6c0,1.1 -0.9,2 -2,2H4c-1.1,0 -2,-0.9 -2,-2v-8c0,-1.1 0.9,-2 2,-2z" fill="#ffffff" fill-opacity="0.97"/>
-        <path d="M4.6,9.4h4.6l1.2,1.2h8.8c0.5,0 0.8,0.3 0.8,0.8v1.6H3.8v-3.2c0,-0.4 0.4,-0.4 0.8,-0.4z" fill="#0A84FF" fill-opacity="0.3"/>
-        <path d="M8.5,14.2l1.2,1.2l2.6,-2.6l2.6,2.6l1.2,-1.2l-3.8,-3.8l-3.8,3.8z" fill="#0A84FF"/>
-        <path d="M8.5,14.2l1.2,1.2l2.6,-2.6" fill="none" stroke="#ffffff" stroke-width="0.8" stroke-linecap="round"/>
+        <path d="M4,8.5h5.2l2,2H20c0.9,0 1.6,0.7 1.6,1.6v6.3c0,0.9 -0.7,1.6 -1.6,1.6H4c-0.9,0 -1.6,-0.7 -1.6,-1.6v-8.3c0,-0.9 0.7,-1.6 1.6,-1.6z" fill="#ffffff" fill-opacity="0.96"/>
+        <path d="M8.3,14.6l1.1,1.1l2.6,-2.6l2.6,2.6l1.1,-1.1l-3.7,-3.7l-3.7,3.7z" fill="#0A84FF"/>
+        <path d="M8.3,14.6l1.1,1.1l2.6,-2.6" fill="none" stroke="#ffffff" stroke-width="0.9" stroke-linecap="round"/>
       </g>
     """,
-    "spark": "M100,400m-2.5,0a2.5,2.5 0 1,0 5,0a2.5,2.5 0 1,0 -5,0M410,92m-2,0a2,2 0 1,0 4,0a2,2 0 1,0 -4,0",
 }
 
 APPS["chat"] = {
-    "grad": ("#5B5BD6", "#6E6AE8", "#9E9EFF"),
+    "grad": ("#5E5CE6", "#8A88F5"),  # systemIndigoLight
     "symbol": """
       <g transform="translate(136 136) scale(10)">
-        <path d="M4,5.5h16c1.1,0 2,0.9 2,2v8.2c0,1.1 -0.9,2 -2,2h-9.6L6,21v-3.3H4c-1.1,0 -2,-0.9 -2,-2V7.5c0,-1.1 0.9,-2 2,-2z" fill="#ffffff" fill-opacity="0.97"/>
-        <path d="M6,10h12v1.4H6V10zM6,13.2h8v1.4H6v-1.4z" fill="#5B5BD6" fill-opacity="0.6"/>
-        <path d="M7.4,10.4h3.2v3.2H7.4z" fill="#5B5BD6" fill-opacity="0.35"/>
+        <path d="M4,5.5h16c1.1,0 2,0.9 2,2v8.2c0,1.1 -0.9,2 -2,2h-9.6L6,21v-3.3H4c-1.1,0 -2,-0.9 -2,-2V7.5c0,-1.1 0.9,-2 2,-2z" fill="#ffffff" fill-opacity="0.96"/>
+        <path d="M6,10h12v1.5H6zM6,13.3h8v1.5H6z" fill="#5E5CE6" fill-opacity="0.55"/>
       </g>
     """,
-    "spark": "M100,100m-2,0a2,2 0 1,0 4,0a2,2 0 1,0 -4,0M404,404m-2.5,0a2.5,2.5 0 1,0 5,0a2.5,2.5 0 1,0 -5,0",
 }
 
 APPS["settings"] = {
-    "grad": ("#6E6E78", "#8E8E98", "#C0C0C8"),
+    "grad": ("#8E8E93", "#B0B0B6"),  # systemGray
     "symbol": """
       <g transform="translate(136 136) scale(10)">
-        <path d="M12,4l1.7,1.9l0.3,0.4l0.5,0.1l2.5,-0.3l1.4,2.1l-1.5,2l-0.3,0.4l0.2,0.5l0.5,2.4l-2.1,1.4l-2.1,-1.4l-0.5,-0.3l-0.5,0.2l-2.1,1.5l-2.2,-1.4l0.5,-2.4l0.2,-0.5l-0.3,-0.4l-1.6,-2l1.4,-2.1l2.5,0.3l0.5,-0.1l0.3,-0.4L12,4z" fill="#ffffff" fill-opacity="0.97"/>
-        <circle cx="12" cy="12" r="2.6" fill="#6E6E78"/>
-        <circle cx="12" cy="12" r="1.3" fill="#ffffff"/>
-        <path d="M12,6.2l0.9,1l0.2,0.2l0.3,0.1l1.3,-0.2l0.8,1.1l-0.8,1l-0.2,0.2l0.1,0.3l0.3,1.2l-1.1,0.7l-1.1,-0.7l-0.3,-0.2l-0.3,0.1l-1.1,0.8l-1.2,-0.7l0.3,-1.2l0.1,-0.3l-0.2,-0.2l-0.9,-1l0.8,-1.1l1.3,0.2l0.3,-0.1l0.2,-0.2l0.9,-1z" fill="#ffffff" fill-opacity="0.25"/>
+        <path d="M12,4.6l1.6,1.7l0.3,0.3l0.5,0.1l2.3,-0.3l1.3,1.9l-1.4,1.8l-0.2,0.3l0.1,0.4l0.5,2.2l-1.9,1.3l-1.9,-1.3l-0.4,-0.3l-0.4,0.1l-1.9,1.4l-2,-1.3l0.5,-2.2l0.1,-0.4l-0.2,-0.3l-1.5,-1.8l1.3,-1.9l2.3,0.3l0.5,-0.1l0.3,-0.3L12,4.6z" fill="#ffffff" fill-opacity="0.96"/>
+        <circle cx="12" cy="12" r="2.4" fill="#8E8E93"/>
+        <circle cx="12" cy="12" r="1.1" fill="#ffffff"/>
       </g>
     """,
-    "spark": "M100,400m-2,0a2,2 0 1,0 4,0a2,2 0 1,0 -4,0",
 }
 
 APPS["hub"] = {
-    "grad": ("#4F46E5", "#6366F1", "#A5B4FC"),
+    "grad": ("#5856D6", "#8B5CF6"),  # indigo→violet
     "symbol": """
       <g transform="translate(136 136) scale(10)">
-        <path d="M12,3.5l8.5,7H19v8.5h-5v-5.5h-4v5.5H5V10.5H3.5L12,3.5z" fill="#ffffff" fill-opacity="0.97"/>
-        <path d="M12,5.2l6.4,5.3v7h-3.2v-5.5H8.8v5.5H5.6v-7L12,5.2z" fill="#4F46E5" fill-opacity="0.3"/>
-        <path d="M8,13h8" stroke="#ffffff" stroke-width="1" stroke-opacity="0.5"/>
+        <path d="M12,3.8l8.2,6.8V19c0,0.8 -0.6,1.4 -1.4,1.4h-4.8v-5.2h-4v5.2H5.2c-0.8,0 -1.4,-0.6 -1.4,-1.4v-8.4L12,3.8z" fill="#ffffff" fill-opacity="0.96"/>
+        <path d="M12,5.6l6.4,5.3v7h-3v-5.5H8.6v5.5h-3v-7L12,5.6z" fill="#5856D6" fill-opacity="0.3"/>
       </g>
     """,
-    "spark": "M100,100m-2.5,0a2.5,2.5 0 1,0 5,0a2.5,2.5 0 1,0 -5,0M410,400m-2,0a2,2 0 1,0 4,0a2,2 0 1,0 -4,0",
 }
 
 APPS["budget"] = {
-    "grad": ("#37B24D", "#51CF66", "#8CE99A"),
+    "grad": ("#32D74B", "#6AE57E"),  # green (light mode #30D158 / dark #32D74B)
     "symbol": """
       <g transform="translate(136 136) scale(10)">
-        <circle cx="12" cy="12" r="9" fill="#ffffff" fill-opacity="0.97"/>
-        <circle cx="12" cy="12" r="7.2" fill="none" stroke="#37B24D" stroke-opacity="0.3" stroke-width="0.9"/>
-        <ellipse cx="12" cy="13.4" rx="2.3" ry="3.4" fill="#37B24D"/>
-        <path d="M10.6,10.6h2.8M10.6,13.2h2.8" stroke="#ffffff" stroke-width="1.1" stroke-linecap="round"/>
-        <path d="M12,7.2v9.6" stroke="#ffffff" stroke-width="1.3" stroke-linecap="round"/>
-        <circle cx="12" cy="12" r="1.15" fill="#ffffff"/>
+        <circle cx="12" cy="12" r="9.2" fill="#ffffff" fill-opacity="0.96"/>
+        <ellipse cx="12" cy="13.6" rx="2.4" ry="3.6" fill="#32D74B"/>
+        <path d="M10.4,10.8h3.2M10.4,13.4h3.2" stroke="#ffffff" stroke-width="1.2" stroke-linecap="round"/>
+        <path d="M12,6.8v9.6" stroke="#ffffff" stroke-width="1.4" stroke-linecap="round"/>
+        <circle cx="12" cy="12" r="1.2" fill="#ffffff"/>
       </g>
     """,
-    "spark": "M100,96m-2,0a2,2 0 1,0 4,0a2,2 0 1,0 -4,0M400,400m-2.5,0a2.5,2.5 0 1,0 5,0a2.5,2.5 0 1,0 -5,0",
 }
 
 APPS["health"] = {
-    "grad": ("#E03131", "#F03E3E", "#FF8787"),
+    "grad": ("#FF453A", "#FF6961"),  # systemRed
     "symbol": """
       <g transform="translate(136 136) scale(10)">
-        <path d="M12,20.5l-1.4,-1.3C5.7,14.9 2.8,12.1 2.8,8.7C2.8,5.9 5.1,3.6 7.9,3.6c1.6,0 3.1,0.75 4.1,1.95c1,-1.2 2.5,-1.95 4.1,-1.95c2.8,0 5.1,2.3 5.1,5.1c0,3.4 -2.9,6.2 -7.8,10.5L12,20.5z" fill="#ffffff" fill-opacity="0.97"/>
-        <!-- pulse -->
-        <path d="M6.5,10.4h2.2l1.2,-2.4l2.1,4.2l1.3,-2.4h3.4" fill="none" stroke="#E03131" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M12,20.3l-1.4,-1.3C5.8,14.7 2.9,12 2.9,8.7c0,-2.7 2.2,-4.9 4.9,-4.9c1.6,0 3.1,0.75 4.2,2c1.1,-1.25 2.6,-2 4.2,-2c2.7,0 4.9,2.2 4.9,4.9c0,3.3 -2.9,6 -7.7,10.3L12,20.3z" fill="#ffffff" fill-opacity="0.96"/>
+        <path d="M6.8,10.2h2.1l1.2,-2.3l2,4l1.2,-2.1h2.9" fill="none" stroke="#FF453A" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
       </g>
     """,
-    "spark": "M100,100m-2,0a2,2 0 1,0 4,0a2,2 0 1,0 -4,0M408,408m-2.5,0a2.5,2.5 0 1,0 5,0a2.5,2.5 0 1,0 -5,0",
 }
 
 
 def svg_icon(name, cfg):
-    c1, c2, c3 = cfg["grad"]
+    c1, c2 = cfg["grad"]
     symbol = cfg["symbol"]
-    spark = cfg["spark"]
     return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="{c1}"/>
-      <stop offset="55%" stop-color="{c2}"/>
-      <stop offset="100%" stop-color="{c3}"/>
+      <stop offset="100%" stop-color="{c2}"/>
     </linearGradient>
-    <clipPath id="r"><rect width="512" height="512" rx="112"/></clipPath>
-    <radialGradient id="gloss" cx="32%" cy="22%" r="90%">
-      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.34"/>
-      <stop offset="45%" stop-color="#ffffff" stop-opacity="0.06"/>
-      <stop offset="100%" stop-color="#000000" stop-opacity="0.14"/>
-    </radialGradient>
-    <linearGradient id="shine" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.18"/>
-      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    <clipPath id="r"><rect width="512" height="512" rx="116"/></clipPath>
+    <linearGradient id="sheen" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.20"/>
+      <stop offset="38%" stop-color="#ffffff" stop-opacity="0.03"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.08"/>
     </linearGradient>
-    <filter id="symShadow" x="-30%" y="-30%" width="160%" height="160%">
-      <feDropShadow dx="0" dy="6" stdDeviation="5" flood-color="#000000" flood-opacity="0.30"/>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="5" stdDeviation="4" flood-color="#000000" flood-opacity="0.25"/>
     </filter>
   </defs>
   <g clip-path="url(#r)">
     <rect width="512" height="512" fill="url(#bg)"/>
-    <!-- background sparkle texture -->
-    <path d="{spark}" fill="none" stroke="#ffffff" stroke-opacity="0.16" stroke-width="2.5"/>
-    <path d="{spark}" fill="#ffffff" fill-opacity="0.14"/>
-    <!-- subtle bottom inner shadow -->
-    <rect x="0" y="380" width="512" height="132" fill="url(#shine)"/>
-    <rect x="0" y="420" width="512" height="92" fill="#000000" fill-opacity="0.10"/>
-    <rect width="512" height="512" fill="url(#gloss)"/>
-    <!-- symbol with soft shadow -->
-    <g filter="url(#symShadow)">
+    <rect width="512" height="512" fill="url(#sheen)"/>
+    <g filter="url(#shadow)">
       {symbol}
     </g>
   </g>
@@ -226,4 +183,4 @@ for name, cfg in APPS.items():
         f.write(svg_icon(name, cfg))
     print("generated", name)
 
-print("PREMIUM SVG ICONS DONE")
+print("MODERN SVG ICONS DONE")

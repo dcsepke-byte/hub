@@ -1,41 +1,28 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#6E6E78"/>
-      <stop offset="55%" stop-color="#8E8E98"/>
-      <stop offset="100%" stop-color="#C0C0C8"/>
+      <stop offset="0%" stop-color="#8E8E93"/>
+      <stop offset="100%" stop-color="#B0B0B6"/>
     </linearGradient>
-    <clipPath id="r"><rect width="512" height="512" rx="112"/></clipPath>
-    <radialGradient id="gloss" cx="32%" cy="22%" r="90%">
-      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.34"/>
-      <stop offset="45%" stop-color="#ffffff" stop-opacity="0.06"/>
-      <stop offset="100%" stop-color="#000000" stop-opacity="0.14"/>
-    </radialGradient>
-    <linearGradient id="shine" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.18"/>
-      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    <clipPath id="r"><rect width="512" height="512" rx="116"/></clipPath>
+    <linearGradient id="sheen" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.20"/>
+      <stop offset="38%" stop-color="#ffffff" stop-opacity="0.03"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.08"/>
     </linearGradient>
-    <filter id="symShadow" x="-30%" y="-30%" width="160%" height="160%">
-      <feDropShadow dx="0" dy="6" stdDeviation="5" flood-color="#000000" flood-opacity="0.30"/>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="5" stdDeviation="4" flood-color="#000000" flood-opacity="0.25"/>
     </filter>
   </defs>
   <g clip-path="url(#r)">
     <rect width="512" height="512" fill="url(#bg)"/>
-    <!-- background sparkle texture -->
-    <path d="M100,400m-2,0a2,2 0 1,0 4,0a2,2 0 1,0 -4,0" fill="none" stroke="#ffffff" stroke-opacity="0.16" stroke-width="2.5"/>
-    <path d="M100,400m-2,0a2,2 0 1,0 4,0a2,2 0 1,0 -4,0" fill="#ffffff" fill-opacity="0.14"/>
-    <!-- subtle bottom inner shadow -->
-    <rect x="0" y="380" width="512" height="132" fill="url(#shine)"/>
-    <rect x="0" y="420" width="512" height="92" fill="#000000" fill-opacity="0.10"/>
-    <rect width="512" height="512" fill="url(#gloss)"/>
-    <!-- symbol with soft shadow -->
-    <g filter="url(#symShadow)">
+    <rect width="512" height="512" fill="url(#sheen)"/>
+    <g filter="url(#shadow)">
       
       <g transform="translate(136 136) scale(10)">
-        <path d="M12,4l1.7,1.9l0.3,0.4l0.5,0.1l2.5,-0.3l1.4,2.1l-1.5,2l-0.3,0.4l0.2,0.5l0.5,2.4l-2.1,1.4l-2.1,-1.4l-0.5,-0.3l-0.5,0.2l-2.1,1.5l-2.2,-1.4l0.5,-2.4l0.2,-0.5l-0.3,-0.4l-1.6,-2l1.4,-2.1l2.5,0.3l0.5,-0.1l0.3,-0.4L12,4z" fill="#ffffff" fill-opacity="0.97"/>
-        <circle cx="12" cy="12" r="2.6" fill="#6E6E78"/>
-        <circle cx="12" cy="12" r="1.3" fill="#ffffff"/>
-        <path d="M12,6.2l0.9,1l0.2,0.2l0.3,0.1l1.3,-0.2l0.8,1.1l-0.8,1l-0.2,0.2l0.1,0.3l0.3,1.2l-1.1,0.7l-1.1,-0.7l-0.3,-0.2l-0.3,0.1l-1.1,0.8l-1.2,-0.7l0.3,-1.2l0.1,-0.3l-0.2,-0.2l-0.9,-1l0.8,-1.1l1.3,0.2l0.3,-0.1l0.2,-0.2l0.9,-1z" fill="#ffffff" fill-opacity="0.25"/>
+        <path d="M12,4.6l1.6,1.7l0.3,0.3l0.5,0.1l2.3,-0.3l1.3,1.9l-1.4,1.8l-0.2,0.3l0.1,0.4l0.5,2.2l-1.9,1.3l-1.9,-1.3l-0.4,-0.3l-0.4,0.1l-1.9,1.4l-2,-1.3l0.5,-2.2l0.1,-0.4l-0.2,-0.3l-1.5,-1.8l1.3,-1.9l2.3,0.3l0.5,-0.1l0.3,-0.3L12,4.6z" fill="#ffffff" fill-opacity="0.96"/>
+        <circle cx="12" cy="12" r="2.4" fill="#8E8E93"/>
+        <circle cx="12" cy="12" r="1.1" fill="#ffffff"/>
       </g>
     
     </g>
