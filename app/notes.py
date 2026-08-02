@@ -41,9 +41,14 @@ def list_notes(q: str = "", project: str = "") -> List[Dict]:
         if project and n.get("project", "") != project:
             continue
         result.append(n)
-    # Gepinnte zuerst, dann nach updated_at absteigend
-    result.sort(key=lambda n: (0 if n.get("pinned") else 1, n.get("updated_at", "")), reverse=True)
-    return result
+    # Gepinnte zuerst, dann nach updated_at absteigend (pinned immer vor unpinned)
+    result.sort(key=lambda n: (0 if n.get("pinned") else 1, n.get("updated_at", "")), reverse=False)
+    # innerhalb derselben Pinned-Gruppe nach updated_at absteigend sortieren
+    pinned = [n for n in result if n.get("pinned")]
+    unpinned = [n for n in result if not n.get("pinned")]
+    pinned.sort(key=lambda n: n.get("updated_at", ""), reverse=True)
+    unpinned.sort(key=lambda n: n.get("updated_at", ""), reverse=True)
+    return pinned + unpinned
 
 
 def create_note(title: str, content: str = "", project: str = "") -> Dict:

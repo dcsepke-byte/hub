@@ -1033,7 +1033,7 @@ function taskRow(t) {
     const diff = Math.round((d - today) / 86400000);
     dueLabel = diff === 0 ? "Heute" : diff === 1 ? "Morgen" : diff < 0 ? `${Math.abs(diff)}d überfällig` : `in ${diff}d`;
   }
-  return `<div class="task-item ${done ? "done" : ""} ${dc}" data-id="${t.id}"><input type="checkbox" ${done ? "checked" : ""} data-id="${t.id}"><div class="task-title" title="${t.title}">${t.title}</div><span class="prio-badge ${prio ? `p${prio[1]}` : ""}" data-prio="${prio}" title="Priorität (P1-P4)">${prio || "–"}</span><div class="task-due">${dueLabel}</div><div class="task-meta">${t.project || "—"}</div></div>`;
+  return `<div class="task-item ${done ? "done" : ""} ${dc}" data-id="${t.id}"><input type="checkbox" ${done ? "checked" : ""} data-id="${t.id}"><div class="task-title" title="${escapeHtml(t.title)}">${escapeHtml(t.title)}</div><span class="prio-badge ${prio ? `p${prio[1]}` : ""}" data-prio="${prio}" title="Priorität (P1-P4)">${prio || "–"}</span><div class="task-due">${dueLabel}</div><div class="task-meta">${escapeHtml(t.project || "—")}</div></div>`;
 }
 
 function bindTaskCheckboxes(root, cb) {
