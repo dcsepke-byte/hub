@@ -17,7 +17,7 @@
   <g clip-path="url(#r)">
     <rect width="512" height="512" fill="url(#bg)"/>
     <rect width="512" height="512" fill="url(#sheen)"/>
-    <g transform="translate(39.9 -52.9) scale(16.89)" filter="url(#shadow)">
+    <g transform="translate(40.3 -52.8) scale(16.85)" filter="url(#shadow)">
       
         <!-- paper -->
         <path d="M5.4,4.2h8.4l5.8,5.8v9.8c0,1 -0.8,1.8 -1.8,1.8H5.4c-1,0 -1.8,-0.8 -1.8,-1.8V6c0,-1 0.8,-1.8 1.8,-1.8z" fill="#ffffff" fill-opacity="0.97"/>

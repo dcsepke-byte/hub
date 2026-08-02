@@ -17,7 +17,7 @@
   <g clip-path="url(#r)">
     <rect width="512" height="512" fill="url(#bg)"/>
     <rect width="512" height="512" fill="url(#sheen)"/>
-    <g transform="translate(49.0 -59.0) scale(17.25)" filter="url(#shadow)">
+    <g transform="translate(65.8 -42.4) scale(15.85)" filter="url(#shadow)">
       
         <path d="M12,20.3l-1.5,-1.35C5.7,14.65 2.8,11.95 2.8,8.65c0,-2.7 2.2,-4.9 4.9,-4.9c1.6,0 3.1,0.75 4.3,2c1.2,-1.25 2.7,-2 4.3,-2c2.7,0 4.9,2.2 4.9,4.9c0,3.3 -2.9,6 -7.7,10.3L12,20.3z" fill="#ffffff" fill-opacity="0.97"/>
         <!-- inner heart shade -->

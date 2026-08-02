@@ -168,13 +168,24 @@ APPS["settings"] = {
     "grad": ("#8E8E93", "#B0B0B6"),
     "label": "Settings",
     "symbol": """
-        <!-- big gear -->
-        <path d="M12,3.4l1.8,1.9l0.4,0.35l0.6,0.12l2.6,-0.4l1.6,2.3l-1.7,2.2l-0.28,0.4l0.16,0.5l0.65,2.5l-2.3,1.5l-2.3,-1.5l-0.5,-0.33l-0.5,0.16l-2.3,1.7l-2.4,-1.5l0.65,-2.5l0.16,-0.5l-0.28,-0.4l-1.75,-2.2l1.6,-2.3l2.6,0.4l0.6,-0.12l0.4,-0.35L12,3.4z" fill="#ffffff" fill-opacity="0.97"/>
-        <circle cx="12" cy="12" r="2.7" fill="#8E8E93"/>
-        <circle cx="12" cy="12" r="1.2" fill="#ffffff"/>
-        <path d="M8.6,6.2c1,-0.7 2.2,-1 3.4,-1" stroke="#ffffff" stroke-width="0.9" stroke-linecap="round" fill="none" fill-opacity="0.5"/>
+        <!-- clear gear: big ring + 8 thick teeth + center hole -->
+        <g fill="#ffffff" fill-opacity="0.97">
+          <circle cx="12" cy="12" r="6.2"/>
+          <!-- teeth -->
+          <rect x="10.6" y="2.2" width="2.8" height="4" rx="1"/>
+          <rect x="10.6" y="17.8" width="2.8" height="4" rx="1"/>
+          <rect x="2.2" y="10.6" width="4" height="2.8" rx="1"/>
+          <rect x="17.8" y="10.6" width="4" height="2.8" rx="1"/>
+          <rect x="4.4" y="4.4" width="2.8" height="4" rx="1" transform="rotate(45 5.8 6.4)"/>
+          <rect x="16.8" y="4.4" width="2.8" height="4" rx="1" transform="rotate(45 18.2 6.4)"/>
+          <rect x="4.4" y="15.6" width="2.8" height="4" rx="1" transform="rotate(45 5.8 17.6)"/>
+          <rect x="16.8" y="15.6" width="2.8" height="4" rx="1" transform="rotate(45 18.2 17.6)"/>
+        </g>
+        <!-- center hole: background-colored -->
+        <circle cx="12" cy="12" r="2.6" fill="#9a9aa0"/>
+        <circle cx="12" cy="12" r="1.1" fill="#ffffff"/>
     """,
-    "bbox": (4.0, 3.2, 20.0, 20.8),
+    "bbox": (2.0, 2.0, 22.0, 22.0),
 }
 
 APPS["hub"] = {
@@ -198,17 +209,8 @@ APPS["budget"] = {
     "grad": ("#32D74B", "#6AE57E"),
     "label": "Budget",
     "symbol": """
-        <circle cx="12" cy="12" r="9.4" fill="#ffffff" fill-opacity="0.97"/>
-        <circle cx="12" cy="12" r="9.4" fill="none" stroke="#1f8f3d" stroke-opacity="0.12" stroke-width="0.8"/>
-        <!-- dollar bill center -->
-        <path d="M12,6.2c-1.8,0 -3.1,1.1 -3.1,2.6c0,3.6 6.2,1.8 6.2,5.4c0,1.6 -1.4,2.7 -3.1,2.7c-1.3,0 -2.5,-0.6 -3,-1.5" fill="none" stroke="#32D74B" stroke-width="1.7" stroke-linecap="round"/>
-        <path d="M12,5.4v13.2" stroke="#32D74B" stroke-width="1.5" stroke-linecap="round"/>
-        <circle cx="12" cy="12" r="1.1" fill="#ffffff"/>
-        <!-- rising bars -->
-        <rect x="5.2" y="15.4" width="1.4" height="2.2" rx="0.4" fill="#32D74B" fill-opacity="0.35"/>
-        <rect x="7.4" y="13.6" width="1.4" height="4" rx="0.4" fill="#32D74B" fill-opacity="0.5"/>
-        <!-- gloss -->
-        <path d="M6.6,7.6c0.8,-0.8 1.9,-1.3 3,-1.4" stroke="#ffffff" stroke-width="1" stroke-linecap="round" fill="none" fill-opacity="0.5"/>
+        <!-- Material Design dollar sign (official path, white) -->
+        <path d="M11.8,10.9c-2.27,-0.59 -3,-1.2 -3,-2.15c0,-1.09 1.01,-1.85 2.7,-1.85c1.78,0 2.44,0.85 2.5,2.1h2.21c-0.07,-1.72 -1.12,-3.3 -3.21,-3.81V3h-3v2.16c-1.94,0.42 -3.5,1.68 -3.5,3.61c0,2.31 1.91,3.46 4.7,4.13c2.5,0.6 3,1.48 3,2.41c0,0.69 -0.49,1.79 -2.7,1.79c-2.06,0 -2.87,-0.92 -2.98,-2.1h-2.2c0.12,2.19 1.76,3.42 3.68,3.83V21h3v-2.15c1.95,-0.37 3.5,-1.68 3.5,-3.55c0,-2.31 -1.91,-3.46 -4.7,-4.13z" fill="#ffffff" fill-opacity="0.97"/>
     """,
     "bbox": (2.4, 2.4, 21.6, 21.6),
 }
@@ -235,12 +237,13 @@ def svg_icon(name, cfg):
     label = cfg.get("label", "")
     minx, miny, maxx, maxy = cfg["bbox"]
     bw, bh = maxx - minx, maxy - miny
-    # Symbol etwas kleiner (fits obere 62%), Text unten
-    target = 512 * 0.62
-    scale = target / max(bw, bh)
+    # Symbol passt in den oberen Bereich (Symbol ~55% Höhe), Text unten
+    target_w = 512 * 0.82
+    target_h = 512 * 0.52
+    scale = min(target_w / bw, target_h / bh)
     sw, sh = bw * scale, bh * scale
     tx = (512 - sw) / 2 - minx * scale
-    ty = (512 * 0.50 - sh) / 2 - miny * scale + 20
+    ty = (512 * 0.46 - sh) / 2 - miny * scale + 30
     label_svg = ""
     if label:
         label_svg = f"""
