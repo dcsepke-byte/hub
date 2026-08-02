@@ -81,6 +81,15 @@ const PAGES = {
   chatthread: renderChatThread,
 };
 
+function parseHash() {
+  const raw = location.hash.slice(1) || "";
+  if (raw.startsWith("chatthread/")) {
+    appState.chatThreadId = raw.split("/")[1] || "";
+    return "chatthread";
+  }
+  return raw.split("/")[0] || "home";
+}
+
 function init() {
   initNav();
   initSearch();
@@ -91,11 +100,11 @@ function init() {
   startAutoRefresh();
   initIdleLogout();
   startTimerTick();
-  const start = location.hash.slice(1) || localStorage.getItem('hub_last_page') || currentPage || "home";
+  const start = parseHash() || localStorage.getItem('hub_last_page') || currentPage || "home";
   navigate(start, false);
-  window.addEventListener("hashchange", () => navigate(location.hash.slice(1), false));
+  window.addEventListener("hashchange", () => navigate(parseHash(), false));
   window.addEventListener("popstate", () => {
-    const page = location.hash.slice(1) || localStorage.getItem('hub_last_page') || "home";
+    const page = parseHash() || localStorage.getItem('hub_last_page') || "home";
     navigate(page, false);
   });
   document.addEventListener("visibilitychange", () => {
@@ -287,7 +296,10 @@ function navigate(page, push = true) {
   setTimeout(() => {
     appState.page = target;
     localStorage.setItem("hub_last_page", target);
-    if (push && location.hash.slice(1) !== target) history.pushState(null, "", `#${target}`);
+    let hash = `#${target}`;
+    // Thread-ID in URL für Deep-Link / Back-Support
+    if (target === "chatthread" && appState.chatThreadId) hash = `#chatthread/${appState.chatThreadId}`;
+    if (push && location.hash !== hash) history.pushState(null, "", hash);
     const home = $("#homeBtn");
     if (home) home.classList.toggle("active", target === "home");
     $("#bottomNav")?.querySelectorAll("button[data-page]").forEach((btn) => btn.classList.toggle("active", btn.dataset.page === target));
@@ -1175,7 +1187,7 @@ async function openTextEditor(path, name) {
   } catch (e) { flash("Fehler", "error"); }
 }
 
-function escapeHtml(text) { return (text || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+function escapeHtml(text) { return (text || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;"); }
 
 function iconForFile(name) {
   const ext = name.split(".").pop().toLowerCase();
@@ -1802,7 +1814,7 @@ async function renderChatThread(container) {
     }
     const msgs = $("#chat-msgs");
     if (msgs) {
-      msgs.innerHTML = (thread.messages || []).map(renderMsgBubble).join("") || "<p class='empty-state'>Noch keine Nachrichten. Frag Hermes etwas!</p>";
+      msgs.innerHTML = (thread.messages || []).map(renderMsgBubble).join("") || "<p class='empty-state' id='chat-empty-state'>Noch keine Nachrichten. Frag Hermes etwas!</p>";
       msgs.scrollTop = msgs.scrollHeight;
     }
   } catch (e) {
@@ -1845,6 +1857,8 @@ async function sendChatMessage() {
   input.style.height = "auto";
   input.disabled = true;
   $("#chat-send").disabled = true;
+  // Empty-State entfernen (falls vorhanden)
+  msgs.querySelector("#chat-empty-state")?.remove();
   // Optimistisch lokal anhängen, dann Antwort vom POST abwarten
   msgs.insertAdjacentHTML("beforeend", renderMsgBubble({ role: "user", content: text, ts: new Date().toISOString() }));
   const typing = document.createElement("div");
@@ -1858,11 +1872,26 @@ async function sendChatMessage() {
     if (res && res.ok && res.assistant) {
       msgs.insertAdjacentHTML("beforeend", renderMsgBubble(res.assistant));
     } else {
-      msgs.insertAdjacentHTML("beforeend", renderMsgBubble({ role: "hermes", content: res?.error || "Fehler bei der Antwort.", ts: new Date().toISOString() }));
+      // Transiente Fehlerbubble mit Retry — wird NICHT persistiert
+      const errDiv = document.createElement("div");
+      errDiv.className = "msg-bubble hermes msg-error";
+      errDiv.innerHTML = `<div>⚠️ Hermes ist gerade nicht erreichbar.</div><button class="btn-secondary msg-retry">↻ Erneut versuchen</button>`;
+      errDiv.querySelector(".msg-retry").addEventListener("click", async () => {
+        errDiv.remove();
+        await sendChatMessage();
+      });
+      msgs.appendChild(errDiv);
     }
   } catch (e) {
     typing.remove();
-    msgs.insertAdjacentHTML("beforeend", renderMsgBubble({ role: "hermes", content: "Antwort fehlgeschlagen. Bitte erneut versuchen.", ts: new Date().toISOString() }));
+    const errDiv = document.createElement("div");
+    errDiv.className = "msg-bubble hermes msg-error";
+    errDiv.innerHTML = `<div>⚠️ Antwort fehlgeschlagen.</div><button class="btn-secondary msg-retry">↻ Erneut versuchen</button>`;
+    errDiv.querySelector(".msg-retry").addEventListener("click", async () => {
+      errDiv.remove();
+      await sendChatMessage();
+    });
+    msgs.appendChild(errDiv);
   }
   msgs.scrollTop = msgs.scrollHeight;
   chatSending = false;

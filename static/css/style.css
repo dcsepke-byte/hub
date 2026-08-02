@@ -453,7 +453,11 @@ input, select, textarea { font-family: inherit; }
 /* Auto-Logout Warnbanner */
 .idle-banner { position: fixed; top: 64px; left: 50%; transform: translateX(-50%); z-index: 350; display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 14px; background: rgba(245,158,11,0.95); color: #1c1c21; font-size: 13px; font-weight: 600; box-shadow: 0 14px 34px rgba(0,0,0,0.35); animation: popIn 0.3s ease; max-width: 92vw; }
 .idle-banner button { background: #1c1c21; color: #fff; border: none; border-radius: 9px; padding: 6px 12px; font-weight: 600; font-size: 12px; cursor: pointer; }
+@media (min-width: 760px) { .idle-banner { top: 76px; } }
 
+/* Chat-Fehlerbubble (transient, mit Retry) */
+.msg-bubble.msg-error { background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3); color: var(--text); }
+.msg-bubble.msg-error .msg-retry { margin-top: 8px; display: inline-block; }
 /* ===== Hermes Chats (Multi-Thread) ===== */
 .chat-search { width: 100%; min-width: 0; padding: 11px 14px; border-radius: var(--radius-sm); border: none; background: var(--surface-2); color: var(--text); font-size: 14px; outline: none; margin-bottom: 12px; }
 .chat-actions { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }

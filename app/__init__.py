@@ -572,11 +572,10 @@ def api_chat_message(thread_id):
 
     res = hermes.answer_user_question(history)
     if res.get("ok"):
-        text = res["text"]
-    else:
-        text = f"Hermes ist gerade nicht erreichbar: {res.get('error', 'Unbekannter Fehler')}"
-    assistant_msg = chats_module.add_message(thread_id, "assistant", text)
-    return jsonify({"ok": True, "user": user_msg, "assistant": assistant_msg})
+        assistant_msg = chats_module.add_message(thread_id, "assistant", res["text"])
+        return jsonify({"ok": True, "user": user_msg, "assistant": assistant_msg})
+    # KI-Fehler NICHT als Assistant-Nachricht persistieren — nur transient im UI anzeigen
+    return jsonify({"ok": False, "error": res.get("error", "KI nicht erreichbar"), "user": user_msg})
 
 
 @socketio.on("chat_message")
