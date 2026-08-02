@@ -83,8 +83,9 @@ html, body { margin: 0; padding: 0; min-height: 100%; font-family: 'Inter', -app
 .card { border-radius: var(--radius); padding: 14px; background: var(--surface); backdrop-filter: blur(18px); border: 1px solid rgba(255,255,255,0.06); box-shadow: 0 10px 28px rgba(0,0,0,0.18); transition: transform var(--transition), box-shadow var(--transition); width: 100%; }
 .card:hover { transform: translateY(-2px); box-shadow: 0 16px 38px rgba(0,0,0,0.24); }
 .card h3 { margin: 0 0 10px; font-size: 14px; font-weight: 600; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; }
-.grid { display: grid; gap: 10px; width: 100%; }
+.grid { display: grid; gap: 10px; width: 100%; min-width: 0; }
 .grid-2, .grid-3 { grid-template-columns: 1fr; }
+.grid-2 > *, .grid-3 > * { min-width: 0; }
 
 .task-tabs, .list-tabs, .section-tabs { display: flex; gap: 5px; margin-bottom: 12px; flex-wrap: wrap; }
 .task-tabs button, .list-tabs button, .section-tabs button { padding: 7px 12px; border-radius: 999px; border: none; background: var(--surface-2); color: var(--text-secondary); font-weight: 500; font-size: 12px; cursor: pointer; transition: all var(--transition); }
@@ -129,16 +130,16 @@ html, body { margin: 0; padding: 0; min-height: 100%; font-family: 'Inter', -app
 .message.user { align-self: flex-end; background: var(--accent); color: #fff; border-bottom-right-radius: 6px; }
 .message.hermes { align-self: flex-start; background: var(--surface-2); color: var(--text); border-bottom-left-radius: 6px; }
 .typing { font-size: 12px; color: var(--text-tertiary); }
-.chat-input { display: flex; gap: 6px; margin-top: 8px; }
-.chat-input input { flex: 1; padding: 8px 11px; border-radius: 12px; border: none; background: var(--surface-2); color: var(--text); outline: none; font-size: 14px; }
+.chat-input { display: flex; gap: 6px; margin-top: 8px; min-width: 0; }
+.chat-input input { flex: 1; min-width: 0; padding: 8px 11px; border-radius: 12px; border: none; background: var(--surface-2); color: var(--text); outline: none; font-size: 14px; }
 .chat-input button { width: 34px; border-radius: 12px; border: none; }
 
-.weather-main { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
-.weather-main .icon { font-size: 36px; }
+.weather-main { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; min-width: 0; }
+.weather-main .icon { font-size: 36px; flex-shrink: 0; }
 .temp { font-size: 26px; font-weight: 700; }
 .weather-meta { font-size: 12px; color: var(--text-secondary); }
-.forecast { display: flex; gap: 8px; justify-content: space-between; }
-.forecast-day { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 10px; color: var(--text-secondary); }
+.forecast { display: flex; gap: 8px; justify-content: space-between; min-width: 0; }
+.forecast-day { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 10px; color: var(--text-secondary); flex: 1; min-width: 0; }
 .forecast-day .icon { font-size: 18px; }
 
 .news-item { display: block; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.05); text-decoration: none; color: var(--text); transition: opacity var(--transition); }
@@ -179,12 +180,12 @@ html, body { margin: 0; padding: 0; min-height: 100%; font-family: 'Inter', -app
 .project-actions button.danger:hover { background: var(--danger); }
 .project-link { display: inline-block; padding: 7px 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); text-decoration: none; color: var(--text); margin: 3px 3px 0 0; font-size: 12px; transition: background var(--transition); }
 .project-link:hover { background: var(--surface-2); }
-.project-form { display: grid; gap: 10px; margin-bottom: 16px; }
-.project-form input, .project-form select { padding: 10px 12px; border-radius: 12px; border: none; background: var(--surface-2); color: var(--text); outline: none; font-size: 14px; }
-.project-form .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.project-form { display: grid; gap: 10px; margin-bottom: 16px; min-width: 0; }
+.project-form input, .project-form select { padding: 10px 12px; border-radius: 12px; border: none; background: var(--surface-2); color: var(--text); outline: none; font-size: 14px; width: 100%; min-width: 0; box-sizing: border-box; }
+.project-form .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; min-width: 0; }
 
 /* Stocks */
-.stock-card { display: flex; justify-content: space-between; align-items: center; padding: 12px 13px; border-radius: var(--radius-xs); background: var(--surface-2); }
+.stock-card { display: flex; justify-content: space-between; align-items: center; padding: 12px 13px; border-radius: var(--radius-xs); background: var(--surface-2); min-width: 0; }
 .stock-symbol { font-weight: 700; font-size: 13px; }
 .stock-price { text-align: right; }
 .stock-price .price { font-weight: 700; font-size: 15px; }
