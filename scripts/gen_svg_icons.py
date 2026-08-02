@@ -168,16 +168,13 @@ APPS["settings"] = {
     "grad": ("#8E8E93", "#B0B0B6"),
     "label": "Settings",
     "symbol": """
-        <path d="M12,3.6l1.7,1.8l0.35,0.3l0.55,0.1l2.4,-0.35l1.5,2.1l-1.55,2l-0.25,0.35l0.15,0.45l0.6,2.3l-2.1,1.4l-2.1,-1.4l-0.45,-0.3l-0.45,0.15l-2.1,1.55l-2.2,-1.4l0.6,-2.3l0.15,-0.45l-0.25,-0.35l-1.6,-2l1.5,-2.1l2.4,0.35l0.55,-0.1l0.35,-0.3L12,3.6z" fill="#ffffff" fill-opacity="0.97"/>
-        <!-- teeth detail -->
-        <path d="M12,3.6l1.7,1.8l0.35,0.3l0.55,0.1l2.4,-0.35l1.5,2.1l-1.55,2l-0.25,0.35l0.15,0.45l0.6,2.3l-2.1,1.4l-2.1,-1.4l-0.45,-0.3l-0.45,0.15l-2.1,1.55l-2.2,-1.4l0.6,-2.3l0.15,-0.45l-0.25,-0.35l-1.6,-2l1.5,-2.1l2.4,0.35l0.55,-0.1l0.35,-0.3L12,3.6z" fill="none" stroke="#8E8E93" stroke-opacity="0.35" stroke-width="0.4"/>
-        <circle cx="12" cy="12" r="2.5" fill="#8E8E93"/>
-        <circle cx="12" cy="12" r="2.5" fill="none" stroke="#6d6d74" stroke-opacity="0.3" stroke-width="0.5"/>
-        <circle cx="12" cy="12" r="1.15" fill="#ffffff"/>
-        <!-- gloss -->
-        <path d="M9.6,6.6c0.7,-0.6 1.6,-0.9 2.4,-1" stroke="#ffffff" stroke-width="0.7" stroke-linecap="round" fill="none" fill-opacity="0.4"/>
+        <!-- big gear -->
+        <path d="M12,3.4l1.8,1.9l0.4,0.35l0.6,0.12l2.6,-0.4l1.6,2.3l-1.7,2.2l-0.28,0.4l0.16,0.5l0.65,2.5l-2.3,1.5l-2.3,-1.5l-0.5,-0.33l-0.5,0.16l-2.3,1.7l-2.4,-1.5l0.65,-2.5l0.16,-0.5l-0.28,-0.4l-1.75,-2.2l1.6,-2.3l2.6,0.4l0.6,-0.12l0.4,-0.35L12,3.4z" fill="#ffffff" fill-opacity="0.97"/>
+        <circle cx="12" cy="12" r="2.7" fill="#8E8E93"/>
+        <circle cx="12" cy="12" r="1.2" fill="#ffffff"/>
+        <path d="M8.6,6.2c1,-0.7 2.2,-1 3.4,-1" stroke="#ffffff" stroke-width="0.9" stroke-linecap="round" fill="none" fill-opacity="0.5"/>
     """,
-    "bbox": (4.2, 3.6, 19.8, 20.4),
+    "bbox": (4.0, 3.2, 20.0, 20.8),
 }
 
 APPS["hub"] = {
@@ -203,12 +200,10 @@ APPS["budget"] = {
     "symbol": """
         <circle cx="12" cy="12" r="9.4" fill="#ffffff" fill-opacity="0.97"/>
         <circle cx="12" cy="12" r="9.4" fill="none" stroke="#1f8f3d" stroke-opacity="0.12" stroke-width="0.8"/>
-        <!-- euro coin -->
-        <ellipse cx="12" cy="13.6" rx="2.6" ry="3.8" fill="#32D74B"/>
-        <ellipse cx="12" cy="13.6" rx="2.6" ry="3.8" fill="none" stroke="#1f8f3d" stroke-opacity="0.3" stroke-width="0.5"/>
-        <path d="M10.2,10.6h3.4M10.2,13.4h3.4" stroke="#ffffff" stroke-width="1.1" stroke-linecap="round"/>
-        <path d="M12,6.6v9.8" stroke="#ffffff" stroke-width="1.3" stroke-linecap="round"/>
-        <circle cx="12" cy="12" r="1.2" fill="#ffffff"/>
+        <!-- dollar bill center -->
+        <path d="M12,6.2c-1.8,0 -3.1,1.1 -3.1,2.6c0,3.6 6.2,1.8 6.2,5.4c0,1.6 -1.4,2.7 -3.1,2.7c-1.3,0 -2.5,-0.6 -3,-1.5" fill="none" stroke="#32D74B" stroke-width="1.7" stroke-linecap="round"/>
+        <path d="M12,5.4v13.2" stroke="#32D74B" stroke-width="1.5" stroke-linecap="round"/>
+        <circle cx="12" cy="12" r="1.1" fill="#ffffff"/>
         <!-- rising bars -->
         <rect x="5.2" y="15.4" width="1.4" height="2.2" rx="0.4" fill="#32D74B" fill-opacity="0.35"/>
         <rect x="7.4" y="13.6" width="1.4" height="4" rx="0.4" fill="#32D74B" fill-opacity="0.5"/>
@@ -249,7 +244,7 @@ def svg_icon(name, cfg):
     label_svg = ""
     if label:
         label_svg = f"""
-    <text x="256" y="448" text-anchor="middle" font-family="'Inter', -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="34" font-weight="700" letter-spacing="-0.5" fill="#ffffff" fill-opacity="0.95">{label}</text>"""
+    <text x="256" y="442" text-anchor="middle" font-family="'Inter', -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="46" font-weight="800" letter-spacing="-0.8" fill="#ffffff" fill-opacity="0.97">{label}</text>"""
     return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">

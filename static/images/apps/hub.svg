@@ -30,6 +30,6 @@
         <path d="M4.2,19.8h15.6" stroke="#ffffff" stroke-width="0.9" stroke-linecap="round" fill="none" fill-opacity="0.35"/>
     
     </g>
-    <text x="256" y="448" text-anchor="middle" font-family="'Inter', -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="34" font-weight="700" letter-spacing="-0.5" fill="#ffffff" fill-opacity="0.95">HUB</text>
+    <text x="256" y="442" text-anchor="middle" font-family="'Inter', -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="46" font-weight="800" letter-spacing="-0.8" fill="#ffffff" fill-opacity="0.97">HUB</text>
   </g>
 </svg>

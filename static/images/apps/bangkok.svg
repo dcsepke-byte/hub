@@ -32,6 +32,6 @@
         <path d="M4.4,16.9h15.2" stroke="#ffffff" stroke-width="1" stroke-linecap="round" fill="none" fill-opacity="0.5"/>
     
     </g>
-    <text x="256" y="448" text-anchor="middle" font-family="'Inter', -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="34" font-weight="700" letter-spacing="-0.5" fill="#ffffff" fill-opacity="0.95">Bangkok</text>
+    <text x="256" y="442" text-anchor="middle" font-family="'Inter', -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="46" font-weight="800" letter-spacing="-0.8" fill="#ffffff" fill-opacity="0.97">Bangkok</text>
   </g>
 </svg>

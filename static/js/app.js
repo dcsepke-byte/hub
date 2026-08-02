@@ -409,7 +409,7 @@ function appIcon(id, label, emoji) {
   if (emoji) {
     return `<div class="app-icon" data-app="${id}"><div class="app-icon-emoji" role="img" aria-label="${label}">${emoji}</div><div class="label">${label}</div></div>`;
   }
-  return `<div class="app-icon" data-app="${id}"><img src="/static/images/apps/${id}.svg?v=6" alt="${label}" title="${label}"></div>`;
+  return `<div class="app-icon" data-app="${id}"><img src="/static/images/apps/${id}.svg?v=7" alt="${label}" title="${label}"></div>`;
 }
 
 function bindAppClicks() {

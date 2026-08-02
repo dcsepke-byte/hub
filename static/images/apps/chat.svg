@@ -29,6 +29,6 @@
         <path d="M8.6,17.4l-1.6,1.6" stroke="#ffffff" stroke-opacity="0.5" stroke-width="0.7" stroke-linecap="round" fill="none"/>
     
     </g>
-    <text x="256" y="448" text-anchor="middle" font-family="'Inter', -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="34" font-weight="700" letter-spacing="-0.5" fill="#ffffff" fill-opacity="0.95">Hermes</text>
+    <text x="256" y="442" text-anchor="middle" font-family="'Inter', -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="46" font-weight="800" letter-spacing="-0.8" fill="#ffffff" fill-opacity="0.97">Hermes</text>
   </g>
 </svg>
