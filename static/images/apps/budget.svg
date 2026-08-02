@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#37B24D"/>
+      <stop offset="100%" stop-color="#8CE99A"/>
+    </linearGradient>
+    <clipPath id="r"><rect width="512" height="512" rx="112"/></clipPath>
+    <radialGradient id="gloss" cx="35%" cy="25%" r="80%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.28"/>
+      <stop offset="55%" stop-color="#ffffff" stop-opacity="0.04"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.12"/>
+    </radialGradient>
+  </defs>
+  <g clip-path="url(#r)">
+    <rect width="512" height="512" fill="url(#g)"/>
+    <rect width="512" height="512" fill="url(#gloss)"/>
+    <g transform="translate(136 136) scale(10)">
+      <path d="M15,10L15,8L9,8v1.83L11.46,12L9,14.17L9,16h6v-2h-2.87L14.87,13L11.67,10zM12,2C6.48,2 2,6.48 2,12s4.48,10 10,10s10,-4.48 10,-10S17.52,2 12,2zM12,20c-4.41,0 -8,-3.59 -8,-8s3.59,-8 8,-8s8,3.59 8,8S16.41,20 12,20z" fill="#ffffff" fill-opacity="0.96"/>
+    </g>
+  </g>
+</svg>

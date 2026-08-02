@@ -409,7 +409,7 @@ function appIcon(id, label, emoji) {
   if (emoji) {
     return `<div class="app-icon" data-app="${id}"><div class="app-icon-emoji" role="img" aria-label="${label}">${emoji}</div><div class="label">${label}</div></div>`;
   }
-  return `<div class="app-icon" data-app="${id}"><img src="/static/images/apps/${id}.png" alt="${label}"><div class="label">${label}</div></div>`;
+  return `<div class="app-icon" data-app="${id}"><img src="/static/images/apps/${id}.svg" alt="${label}"><div class="label">${label}</div></div>`;
 }
 
 function bindAppClicks() {
@@ -438,12 +438,12 @@ async function renderHome(container) {
       ${appIcon("party-arena", "Party Arena")}
       ${appIcon("piano-coach", "Klavier")}
       ${appIcon("bangkok", "Bangkok")}
-      ${appIcon("notizen", "Notizen", "📝")}
+      ${appIcon("notizen", "Notizen")}
       ${appIcon("projects", "Projekte")}
       ${appIcon("todo", "To-Do")}
-      ${appIcon("budget", "Budget", "💰")}
+      ${appIcon("budget", "Budget")}
       ${appIcon("explorer", "Explorer")}
-      ${appIcon("health", "Gesundheit", "💧")}
+      ${appIcon("health", "Gesundheit")}
       ${appIcon("chat", "Hermes")}
       ${appIcon("settings", "Settings")}
     </div>
