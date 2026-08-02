@@ -131,6 +131,8 @@ function initTheme() {
     const isLight = document.body.classList.contains("light");
     document.body.className = isLight ? "dark" : "light";
     localStorage.setItem("hub_theme", isLight ? "dark" : "light");
+    // Icons dem Theme anpassen (monochrome Varianten neu laden)
+    if (appState.page === "home") renderHome($("#content"));
   });
 }
 
@@ -409,7 +411,8 @@ function appIcon(id, label, emoji) {
   if (emoji) {
     return `<div class="app-icon" data-app="${id}"><div class="app-icon-emoji" role="img" aria-label="${label}">${emoji}</div><div class="label">${label}</div></div>`;
   }
-  return `<div class="app-icon" data-app="${id}"><img src="/static/images/apps/${id}.svg?v=8" alt="${label}" title="${label}"></div>`;
+  const mode = document.body.classList.contains("light") ? "light" : "dark";
+  return `<div class="app-icon" data-app="${id}"><img src="/static/images/apps/${id}-${mode}.svg?v=9" alt="${label}" title="${label}"></div>`;
 }
 
 function bindAppClicks() {
