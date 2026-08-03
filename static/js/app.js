@@ -101,6 +101,7 @@ function init() {
   startAutoRefresh();
   initIdleLogout();
   startTimerTick();
+  initInstallBanner();
   const start = parseHash() || localStorage.getItem('hub_last_page') || currentPage || "home";
   navigate(start, false);
   window.addEventListener("hashchange", () => navigate(parseHash(), false));
@@ -475,11 +476,12 @@ async function renderHome(container) {
       <div class="card" id="timer-card"><h3>⏱️ Timer</h3><div id="timer-body">${skeletonCard()}</div></div>
       <div class="card" id="water-card"><h3>💧 Wasser</h3><div id="water-body">${skeletonCard()}</div></div>
       <div class="card" id="stocks-card"><h3>📈 Watchlist</h3><div class="task-list">${skeletonList(3)}</div></div>
-      <div class="card" id="news-card"><h3>📰 News</h3><div id="news-list">${skeletonList(3)}</div></div>
+      <div class="card" id="news-card"><h3>📰 News</h3><div class="news-tabs" id="news-tabs"><button data-cat="top" class="active">Top</button><button data-cat="tech">Tech</button><button data-cat="wirtschaft">Wirtschaft</button><button data-cat="sport">Sport</button><button data-cat="wissenschaft">Wissenschaft</button></div><div id="news-list">${skeletonList(3)}</div></div>
     </div>`;
   bindAppClicks();
   initChat();
   bindSuggestionChip();
+  initNewsTabs();
   await Promise.all([loadWeather(), loadTodayTasks(), loadTodayEvents(), loadNews(), loadStocks(), loadCalendarWeek(), loadTimer(), loadWater()]);
   refreshSuggestionChip();
   initPullToRefresh(() => Promise.all([loadWeather(), loadTodayTasks(), loadTodayEvents(), loadNews(), loadStocks(), loadCalendarWeek(), loadTimer(), loadWater()]).then(refreshSuggestionChip));
@@ -679,15 +681,33 @@ function formatDate(iso) {
   return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
 }
 
-async function loadNews() {
+async function loadNews(category) {
   const el = $("#news-list");
   if (!el) return;
+  const cat = category || localStorage.getItem("hub_news_category") || "top";
   try {
-    const data = await getJSON("/api/news");
+    const data = await getJSON(`/api/news?category=${encodeURIComponent(cat)}`);
     el.classList.remove("loader");
     if (!data.ok || !data.items.length) { el.innerHTML = "<p class='empty-state'>News momentan nicht verfügbar.</p>"; return; }
     el.innerHTML = data.items.map((n) => `<a href="${escapeHtml(n.url)}" target="_blank" class="news-item" rel="noopener"><div class="news-title">${escapeHtml(n.title)}</div><div class="news-desc">${escapeHtml(n.description)}</div><div class="news-date">${n.published ? new Date(n.published).toLocaleString('de-DE', {weekday:'short', hour:'2-digit', minute:'2-digit'}) : ''}</div></a>`).join("");
   } catch (e) { el.classList.remove("loader"); el.innerHTML = "<p class='empty-state'>Fehler beim Laden.</p>"; }
+}
+
+function initNewsTabs() {
+  const tabs = $("#news-tabs");
+  if (!tabs) return;
+  tabs.querySelectorAll("button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      tabs.querySelectorAll("button").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      const cat = btn.dataset.cat;
+      localStorage.setItem("hub_news_category", cat);
+      loadNews(cat);
+    });
+  });
+  // Aktive Tab aus localStorage setzen
+  const saved = localStorage.getItem("hub_news_category") || "top";
+  tabs.querySelectorAll("button").forEach((b) => b.classList.toggle("active", b.dataset.cat === saved));
 }
 
 async function loadStocks() {
@@ -2094,3 +2114,61 @@ function urlB64ToUint8Array(base64) {
 }
 
 document.addEventListener("DOMContentLoaded", init);
+
+// ===== PWA Install-Banner =====
+let deferredPrompt = null;
+
+function initInstallBanner() {
+  // beforeinstallprompt abfangen
+  window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    checkShowBanner();
+  });
+
+  // Visit-Count erhöhen
+  const visits = parseInt(localStorage.getItem("hub_visit_count") || "0", 10) + 1;
+  localStorage.setItem("hub_visit_count", visits.toString());
+
+  // Banner nur zeigen wenn nicht dismissed und >= 2. Besuch
+  if (localStorage.getItem("hub_pwa_dismissed") !== "1" && visits >= 2 && deferredPrompt) {
+    showInstallBanner();
+  }
+}
+
+function checkShowBanner() {
+  const visits = parseInt(localStorage.getItem("hub_visit_count") || "0", 10);
+  if (localStorage.getItem("hub_pwa_dismissed") !== "1" && visits >= 2 && deferredPrompt) {
+    showInstallBanner();
+  }
+}
+
+function showInstallBanner() {
+  if (document.querySelector(".install-banner")) return;
+  const banner = document.createElement("div");
+  banner.className = "install-banner";
+  banner.innerHTML = `
+    <span class="banner-icon">📱</span>
+    <span class="banner-text">Zum Home-Bildschirm hinzufügen</span>
+    <button class="banner-btn">Installieren</button>
+    <button class="banner-close" title="Schließen">×</button>
+  `;
+  document.body.appendChild(banner);
+
+  banner.querySelector(".banner-btn").addEventListener("click", async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const result = await deferredPrompt.userChoice;
+      deferredPrompt = null;
+      if (result.outcome === "accepted") {
+        localStorage.setItem("hub_pwa_dismissed", "1");
+      }
+    }
+    banner.remove();
+  });
+
+  banner.querySelector(".banner-close").addEventListener("click", () => {
+    localStorage.setItem("hub_pwa_dismissed", "1");
+    banner.remove();
+  });
+}

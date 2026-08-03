@@ -507,3 +507,18 @@ input, select, textarea { font-family: inherit; }
 .lydia-item { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 14px; }
 .lydia-item:last-child { border-bottom: none; }
 @media (min-width: 760px) { .lydia-grid { grid-template-columns: 1fr 1fr; gap: 16px; } .lydia-temp { font-size: 48px; } }
+
+/* ===== News-Quellen-Tabs ===== */
+.news-tabs { display: flex; gap: 5px; margin-bottom: 10px; flex-wrap: wrap; }
+.news-tabs button { padding: 5px 11px; border-radius: 999px; border: none; background: var(--surface-2); color: var(--text-secondary); font-weight: 500; font-size: 11px; cursor: pointer; transition: all var(--transition); }
+.news-tabs button.active { background: var(--accent); color: #fff; }
+.news-tabs button:hover:not(.active) { background: var(--surface-3); }
+
+/* ===== PWA Install-Banner ===== */
+.install-banner { position: fixed; bottom: 76px; left: 8px; right: 8px; z-index: 150; display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: var(--radius-sm); background: var(--surface-solid); border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 -4px 20px rgba(0,0,0,0.3); font-size: 13px; color: var(--text); animation: sheetUp 0.32s cubic-bezier(0.22,0.61,0.36,1); }
+.install-banner .banner-icon { font-size: 22px; flex-shrink: 0; }
+.install-banner .banner-text { flex: 1; font-weight: 500; }
+.install-banner .banner-btn { padding: 7px 14px; border-radius: 999px; border: none; background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; font-weight: 600; font-size: 12px; cursor: pointer; white-space: nowrap; flex-shrink: 0; transition: opacity var(--transition); }
+.install-banner .banner-btn:hover { opacity: 0.9; }
+.install-banner .banner-close { background: none; border: none; color: var(--text-secondary); font-size: 16px; cursor: pointer; padding: 4px; flex-shrink: 0; }
+@media (min-width: 761px) { .install-banner { display: none; } }

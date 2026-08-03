@@ -107,7 +107,11 @@ def api_weather():
 @app.route("/api/news")
 @require_login
 def api_news():
-    return jsonify(news.fetch_news(limit=5))
+    category = request.args.get("category", "top").strip().lower()
+    valid = {"top", "tech", "wirtschaft", "sport", "wissenschaft"}
+    if category not in valid:
+        category = "top"
+    return jsonify(news.fetch_news(limit=5, category=category))
 
 
 @app.route("/api/search")
