@@ -1617,6 +1617,69 @@ async function loadHealth() {
   } catch (e) { el.innerHTML = "<p class='empty-state'>Health nicht verfügbar.</p>"; }
 }
 
+// --- Lydia-Modus (einfache UI für Lydia) ---
+function renderLydia(container) {
+  container.innerHTML = `
+    <div class="back-home"><button class="btn-secondary" id="back-home">← Home</button></div>
+    <h2 class="page-title">👸 Lydia's Bereich</h2>
+    <div class="lydia-grid">
+      <div class="lydia-card" id="lydia-weather"><h3>🌤️ Wetter</h3><div id="lydia-weather-content">${skeletonCard()}</div></div>
+      <div class="lydia-card" id="lydia-events"><h3>📅 Termine</h3><div id="lydia-events-content">${skeletonList(3)}</div></div>
+      <div class="lydia-card" id="lydia-shopping"><h3>🛒 Einkauf</h3><div id="lydia-shopping-content">${skeletonList(3)}</div></div>
+      <div class="lydia-card" id="lydia-recipes"><h3>🍳 Rezepte</h3><div id="lydia-recipes-content">${skeletonList(3)}</div><button class="btn-primary" id="lydia-add-recipe" style="margin-top:8px;width:100%">＋ Rezept</button></div>
+    </div>`;
+  $("#back-home")?.addEventListener("click", () => navigate("home"));
+  loadLydiaWeather();
+  loadLydiaEvents();
+  loadLydiaShopping();
+  loadLydiaRecipes();
+  $("#lydia-add-recipe")?.addEventListener("click", () => {
+    const title = promptWithFallback("Name des Rezepts:");
+    if (!title) return;
+    const ingredients = promptWithFallback("Zutaten (durch Komma getrennt):");
+    if (ingredients === null) return;
+    const instructions = promptWithFallback("Zubereitung:");
+    if (instructions === null) return;
+    postJSON("/api/recipes", { title, ingredients, instructions }).then(() => loadLydiaRecipes());
+  });
+  initPullToRefresh(() => { loadLydiaWeather(); loadLydiaEvents(); loadLydiaShopping(); loadLydiaRecipes(); });
+}
+
+async function loadLydiaWeather() {
+  const el = $("#lydia-weather-content"); if (!el) return;
+  try {
+    const data = await getJSON("/api/weather");
+    if (!data.ok) { el.innerHTML = "<p class='empty-state'>Nicht verfügbar</p>"; return; }
+    el.innerHTML = `<div class="lydia-temp">${data.current.temp}°C</div><div style="font-size:14px">${data.current.code === 0 ? '☀️' : '☁️'} Luft: ${data.current.humidity}%</div>`;
+  } catch (e) { el.innerHTML = "<p class='empty-state'>Fehler</p>"; }
+}
+
+async function loadLydiaEvents() {
+  const el = $("#lydia-events-content"); if (!el) return;
+  try {
+    const data = await getJSON("/api/calendar");
+    const events = data.today || [];
+    el.innerHTML = events.length ? events.slice(0, 3).map(e => `<div class="lydia-item"><span>${e.title}</span><span style="color:var(--text-secondary)">${new Date(e.start).toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"})}</span></div>`).join("") : "<p class='empty-state'>Keine Termine</p>";
+  } catch (e) { el.innerHTML = "<p class='empty-state'>Fehler</p>"; }
+}
+
+async function loadLydiaShopping() {
+  const el = $("#lydia-shopping-content"); if (!el) return;
+  try {
+    const data = await getJSON("/api/lists");
+    const items = (data.Einkauf || []);
+    el.innerHTML = items.length ? items.slice(0, 5).map(i => `<div class="lydia-item"><span>${escapeHtml(i.text)}</span></div>`).join("") : "<p class='empty-state'>Einkaufsliste leer</p>";
+  } catch (e) { el.innerHTML = "<p class='empty-state'>Fehler</p>"; }
+}
+
+async function loadLydiaRecipes() {
+  const el = $("#lydia-recipes-content"); if (!el) return;
+  try {
+    const recipes = await getJSON("/api/recipes");
+    el.innerHTML = recipes.length ? recipes.map(r => `<div class="lydia-item"><div><strong>${escapeHtml(r.title)}</strong></div><div style="font-size:11px;color:var(--text-secondary)">${escapeHtml((r.ingredients || '').slice(0, 60))}${(r.ingredients||'').length > 60 ? '…' : ''}</div></div>`).join("") : "<p class='empty-state'>Noch keine Rezepte</p>";
+  } catch (e) { el.innerHTML = "<p class='empty-state'>Fehler</p>"; }
+}
+
 // --- Eisenhower-Matrix ---
 async function renderMatrixView() {
   await loadPriosFromServer();

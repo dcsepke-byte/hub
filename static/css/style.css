@@ -499,4 +499,11 @@ input, select, textarea { font-family: inherit; }
 .typing-indicator span:nth-child(3) { animation-delay: 0.3s; }
 @keyframes typingBounce { 0%, 60%, 100% { transform: translateY(0); opacity: 0.45; } 30% { transform: translateY(-5px); opacity: 1; } }
 @media (min-width: 760px) { .chat-view { height: calc(100vh - 200px); } .msg-bubble { max-width: 65%; } }
-@media (min-width: 760px) { .idle-banner { top: 76px; } }
+
+/* Lydia-Modus */
+.lydia-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 100%; min-width: 0; }
+.lydia-card { border-radius: var(--radius); padding: 16px; background: var(--surface); border: 1px solid rgba(255,255,255,0.06); min-width: 0; }
+.lydia-temp { font-size: 38px; font-weight: 800; }
+.lydia-item { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 14px; }
+.lydia-item:last-child { border-bottom: none; }
+@media (min-width: 760px) { .lydia-grid { grid-template-columns: 1fr 1fr; gap: 16px; } .lydia-temp { font-size: 48px; } }
