@@ -79,6 +79,7 @@ const PAGES = {
   health: renderHealth,
   chat: renderChat,
   chatthread: renderChatThread,
+  lydia: renderLydia,
 };
 
 function parseHash() {

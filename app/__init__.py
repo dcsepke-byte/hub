@@ -15,6 +15,7 @@ from app import projects as projects_module, stocks
 from app import notes, budget, timetrack, health, priorities
 from app import chats as chats_module
 from app import push as push_module
+from app import lydia
 
 PROJECTS_DATA = []
 
@@ -637,6 +638,32 @@ def api_push_unsubscribe():
     data = request.get_json(silent=True) or {}
     endpoint = data.get("endpoint", "")
     return jsonify({"ok": push_module.unsubscribe(endpoint)})
+
+
+# --- Lydia: Rezepte ---
+
+@app.route("/api/recipes")
+@require_login
+def api_recipes():
+    return jsonify(lydia.list_recipes())
+
+
+@app.route("/api/recipes", methods=["POST"])
+@require_login
+def api_create_recipe():
+    data = request.get_json(silent=True) or {}
+    title = str(data.get("title", "")).strip()
+    if not title:
+        return jsonify({"ok": False, "error": "Titel fehlt"}), 400
+    return jsonify(lydia.create_recipe(
+        title, data.get("ingredients", ""), data.get("instructions", "")
+    ))
+
+
+@app.route("/api/recipes/<recipe_id>", methods=["DELETE"])
+@require_login
+def api_delete_recipe(recipe_id):
+    return jsonify(lydia.delete_recipe(recipe_id))
 
 
 # --- Static file serving for uploads ---
