@@ -12,8 +12,9 @@ from app.auth import require_login, verify_password, LoginThrottle
 from app import notion, weather, explorer
 from app import hermes, search as search_module, news, calendar, lists
 from app import projects as projects_module, stocks
-from app import notes, budget, timetrack, health
+from app import notes, budget, timetrack, health, priorities
 from app import chats as chats_module
+from app import push as push_module
 
 PROJECTS_DATA = []
 
@@ -512,6 +513,22 @@ def api_delete_stock(symbol):
     return jsonify(stocks.remove_symbol(symbol))
 
 
+# --- Eisenhower-Prioritäten ---
+
+@app.route("/api/priorities")
+@require_login
+def api_priorities():
+    return jsonify(priorities.get_prios())
+
+
+@app.route("/api/priorities/<task_id>", methods=["PATCH"])
+@require_login
+def api_patch_priority(task_id):
+    data = request.get_json(silent=True) or {}
+    prio = data.get("prio", "")
+    return jsonify(priorities.set_prio(task_id, prio))
+
+
 # --- Hermes Chats (Multi-Thread) ---
 
 @app.route("/api/chats")
@@ -570,7 +587,9 @@ def api_chat_message(thread_id):
     history.append({"role": "user", "content": content})
     user_msg = chats_module.add_message(thread_id, "user", content)
 
-    res = hermes.answer_user_question(history)
+    # Kontext vom Frontend (wird nicht persistiert)
+    context = data.get("context") if isinstance(data.get("context"), dict) else None
+    res = hermes.answer_user_question(history, context=context)
     if res.get("ok"):
         assistant_msg = chats_module.add_message(thread_id, "assistant", res["text"])
         return jsonify({"ok": True, "user": user_msg, "assistant": assistant_msg})
@@ -592,6 +611,32 @@ def handle_chat_message(data):
         emit("chat_message", {"role": "hermes", "text": res["text"]}, broadcast=True)
     else:
         emit("chat_message", {"role": "hermes", "text": f"KI nicht erreichbar: {res.get('error', 'Unbekannter Fehler')}"}, broadcast=True)
+
+
+# --- Push Notifications ---
+
+@app.route("/api/push/public_key")
+@require_login
+def api_push_public_key():
+    return jsonify({"key": push_module.get_public_key()})
+
+
+@app.route("/api/push/subscribe", methods=["POST"])
+@require_login
+def api_push_subscribe():
+    data = request.get_json(silent=True) or {}
+    subscription = data.get("subscription")
+    if not subscription:
+        return jsonify({"ok": False, "error": "subscription fehlt"}), 400
+    return jsonify({"ok": push_module.subscribe(subscription)})
+
+
+@app.route("/api/push/unsubscribe", methods=["POST"])
+@require_login
+def api_push_unsubscribe():
+    data = request.get_json(silent=True) or {}
+    endpoint = data.get("endpoint", "")
+    return jsonify({"ok": push_module.unsubscribe(endpoint)})
 
 
 # --- Static file serving for uploads ---

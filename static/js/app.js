@@ -719,6 +719,7 @@ async function loadStocks() {
 
 async function loadTodayTasks() {
   try {
+    await loadPriosFromServer();
     const tasks = await getJSON("/api/tasks?status=Offen");
     const el = $("#tasks-card");
     const today = tasks.slice(0, 6);
@@ -943,6 +944,7 @@ function dueClass(due) {
 }
 
 async function loadTasks() {
+  await loadPriosFromServer();
   if (appState.taskView === "matrix") return renderMatrixView();
   const list = $("#task-list"); if (!list) return;
   try {
@@ -1067,28 +1069,80 @@ function bindTaskCheckboxes(root, cb) {
     box.addEventListener("change", async () => { await patchJSON(`/api/tasks/${box.dataset.id}/status`, { status: box.checked ? "Erledigt" : "Offen" }); cb && cb(); });
   });
   root.querySelectorAll(".prio-badge").forEach((badge) => {
-    badge.addEventListener("click", (e) => {
+    badge.addEventListener("click", async (e) => {
       e.stopPropagation();
       const item = badge.closest(".task-item");
       if (!item) return;
       const order = ["P1", "P2", "P3", "P4", ""];
       const cur = badge.dataset.prio || "";
       const next = order[(order.indexOf(cur) + 1) % order.length];
-      setTaskPrio(item.dataset.id, next);
+      await setTaskPrio(item.dataset.id, next);
       cb && cb();
     });
   });
 }
 
-// Prioritäten (Eisenhower): lokal pro Task gespeichert
-function getTaskPrios() {
+// Prioritäten (Eisenhower): serverseitig + localStorage-Fallback
+// _prioCache: Server-gewinner-Merge, nach loadPriosFromServer() gefüllt
+let _prioCache = null;
+let _prioLoading = false;
+let _prioLoaded = false;
+
+async function loadPriosFromServer() {
+  if (_prioLoading) {
+    // Warte auf laufenden Load (max 5s)
+    const start = Date.now();
+    while (_prioLoading && Date.now() - start < 5000) {
+      await new Promise(r => setTimeout(r, 100));
+    }
+    if (_prioLoaded) return;
+  }
+  _prioLoading = true;
+  try {
+    const serverPrios = await getJSON("/api/priorities");
+    const localPrios = _getLocalPrios();
+    // Server gewinnt, local als Fallback für IDs die nicht auf dem Server sind
+    _prioCache = { ...localPrios, ...serverPrios };
+    // Lokalen Stand mit Server synchronisieren
+    localStorage.setItem("hub_task_prio", JSON.stringify(_prioCache));
+    _prioLoaded = true;
+  } catch (e) {
+    _prioCache = _getLocalPrios();
+    _prioLoaded = true;
+  } finally {
+    _prioLoading = false;
+  }
+}
+
+function _getLocalPrios() {
   try { return JSON.parse(localStorage.getItem("hub_task_prio") || "{}"); } catch (e) { return {}; }
 }
-function setTaskPrio(id, prio) {
-  const map = getTaskPrios();
-  if (!prio) delete map[id];
-  else map[id] = prio;
-  localStorage.setItem("hub_task_prio", JSON.stringify(map));
+
+function getTaskPrios() {
+  // Synchroner Zugriff: Cache oder localStorage-Fallback
+  if (_prioCache) return _prioCache;
+  _prioCache = _getLocalPrios();
+  return _prioCache;
+}
+
+async function setTaskPrio(id, prio) {
+  // Cache sicherstellen
+  if (!_prioCache) await loadPriosFromServer();
+
+  // Cache updaten
+  if (!prio) delete _prioCache[id];
+  else _prioCache[id] = prio;
+
+  // localStorage synchron halten
+  localStorage.setItem("hub_task_prio", JSON.stringify(_prioCache));
+
+  // Server-Update (fire-and-forget mit Log)
+  try {
+    await patchJSON(`/api/priorities/${encodeURIComponent(id)}`, { prio: prio });
+  } catch (e) {
+    // Fallback: nur lokal gespeichert — wird beim nächsten loadPriosFromServer() überschrieben
+    console.warn("Server-Prio update failed, saved locally only");
+  }
 }
 
 // --- Explorer vereinfacht ---
@@ -1211,11 +1265,20 @@ function formatBytes(b) {
 // --- Settings ---
 function renderSettings(container) {
   const isDark = document.body.classList.contains("dark");
-  container.innerHTML = `<div class="back-home"><button class="btn-secondary" id="back-home">← Home</button></div><h2 class="page-title">Settings</h2><div class="grid grid-2"><div class="card"><h3>🎨 Erscheinungsbild</h3><div class="setting-row"><label>Dark Mode</label><input type="checkbox" id="dark-toggle" ${isDark ? "checked" : ""}></div></div><div class="card"><h3>🔌 Integrationen</h3><div class="integration-list"><div class="integration-item ok"><span class="status-dot"></span> Notion</div><div class="integration-item ok"><span class="status-dot"></span> Open-Meteo Wetter</div><div class="integration-item ok"><span class="status-dot"></span> Ollama Cloud KI</div><div class="integration-item gap"><span class="status-dot"></span> Google Calendar (Stufe 2)</div></div></div><div class="card"><h3>⏱️ Auto-Logout</h3><div class="setting-row"><label>Nach Inaktivität abmelden</label></div><div style="display:flex;gap:6px"><input type="number" id="idle-minutes" min="1" max="240" value="${localStorage.getItem("hub_idle_minutes") || 30}" style="flex:1;padding:9px 11px;border-radius:10px;border:none;background:var(--surface-2);color:var(--text);font-size:14px"><button class="btn-secondary" id="idle-save">Speichern</button></div><p style="font-size:11px;color:var(--text-tertiary);margin:6px 0 0">60 Sekunden vor Ablauf erscheint eine Warnung. Klicks, Touches und Tastatur setzen den Timer zurück.</p></div><div class="card" style="grid-column:1/-1"><h3>🔐 Sicherheit</h3><div class="setting-row"><label>Passwort ändern</label><button class="btn-secondary" id="toggle-pw">Ändern</button></div><form id="pw-form" style="display:none; margin-top:10px"><input type="password" id="current-pw" placeholder="Aktuelles Passwort" required><input type="password" id="new-pw" placeholder="Neues Passwort" required><button type="submit" class="btn-primary">Speichern</button><pre id="pw-result" style="margin-top:10px; word-break:break-all; font-size:12px; color:var(--text-tertiary)"></pre></form></div></div>`;
+  container.innerHTML = `<div class="back-home"><button class="btn-secondary" id="back-home">← Home</button></div><h2 class="page-title">Settings</h2><div class="grid grid-2"><div class="card"><h3>🎨 Erscheinungsbild</h3><div class="setting-row"><label>Dark Mode</label><input type="checkbox" id="dark-toggle" ${isDark ? "checked" : ""}></div></div><div class="card"><h3>🔌 Integrationen</h3><div class="integration-list"><div class="integration-item ok"><span class="status-dot"></span> Notion</div><div class="integration-item ok"><span class="status-dot"></span> Open-Meteo Wetter</div><div class="integration-item ok"><span class="status-dot"></span> DeepSeek KI</div><div class="integration-item gap"><span class="status-dot"></span> Google Calendar (Stufe 2)</div></div></div><div class="card"><h3>⏱️ Auto-Logout</h3><div class="setting-row"><label>Nach Inaktivität abmelden</label></div><div style="display:flex;gap:6px"><input type="number" id="idle-minutes" min="1" max="240" value="${localStorage.getItem("hub_idle_minutes") || 30}" style="flex:1;padding:9px 11px;border-radius:10px;border:none;background:var(--surface-2);color:var(--text);font-size:14px"><button class="btn-secondary" id="idle-save">Speichern</button></div><p style="font-size:11px;color:var(--text-tertiary);margin:6px 0 0">60 Sekunden vor Ablauf erscheint eine Warnung.</p></div><div class="card"><h3>🔔 Push-Benachrichtigungen</h3><div class="setting-row"><label>Benachrichtigungen</label><input type="checkbox" id="push-toggle"></div><p style="font-size:11px;color:var(--text-tertiary);margin:6px 0 0">Erhalte Benachrichtigungen für Tasks &amp; Termine direkt auf dein Gerät.</p></div><div class="card" style="grid-column:1/-1"><h3>🔐 Sicherheit</h3><div class="setting-row"><label>Passwort ändern</label><button class="btn-secondary" id="toggle-pw">Ändern</button></div><form id="pw-form" style="display:none; margin-top:10px"><input type="password" id="current-pw" placeholder="Aktuelles Passwort" required><input type="password" id="new-pw" placeholder="Neues Passwort" required><button type="submit" class="btn-primary">Speichern</button><pre id="pw-result" style="margin-top:10px; word-break:break-all; font-size:12px; color:var(--text-tertiary)"></pre></form></div></div>`;
   $("#back-home")?.addEventListener("click", () => navigate("home"));
   const toggle = $("#dark-toggle");
   toggle.addEventListener("change", () => { document.body.classList.toggle("dark", toggle.checked); document.body.classList.toggle("light", !toggle.checked); localStorage.setItem("hub_theme", toggle.checked ? "dark" : "light"); });
   $("#toggle-pw")?.addEventListener("click", () => { const form = $("#pw-form"); form.style.display = form.style.display === "none" ? "block" : "none"; });
+  // Push notification toggle
+  pushIsEnabled().then(enabled => {
+    const pt = $("#push-toggle");
+    if (pt) { pt.checked = enabled; pt.addEventListener("change", async () => {
+      if (pt.checked) { await pushSubscribe(); }
+      else { await pushUnsubscribe(); }
+      pt.checked = await pushIsEnabled();
+    });}
+  });
   $("#pw-form")?.addEventListener("submit", async (e) => {
     e.preventDefault();
     const res = await postJSON("/api/settings/password", { current: $("#current-pw").value, new: $("#new-pw").value });
@@ -1555,6 +1618,7 @@ async function loadHealth() {
 
 // --- Eisenhower-Matrix ---
 async function renderMatrixView() {
+  await loadPriosFromServer();
   const panel = $("#matrix-panel");
   if (!panel) return;
   try {
@@ -1873,8 +1937,22 @@ async function sendChatMessage() {
   typing.innerHTML = "<span></span><span></span><span></span>";
   msgs.appendChild(typing);
   msgs.scrollTop = msgs.scrollHeight;
+
+  // Kontext sammeln (welche Seite, welches Projekt)
+  const context = { page: appState.page };
+  if (appState.page === "project" && appState.projectDetail) {
+    context.project = document.querySelector("#pd-title")?.textContent || "";
+  } else if ((appState.page === "chat" || appState.page === "chatthread") && appState.chatThreadId) {
+    // Thread-Infos für Kontext laden
+    try {
+      const threadRes = await fetch(`/api/chats/${encodeURIComponent(appState.chatThreadId)}`);
+      const thread = await threadRes.json();
+      if (thread && thread.project) context.project = thread.project;
+    } catch (_) {}
+  }
+
   try {
-    const res = await postJSON(`/api/chats/${encodeURIComponent(appState.chatThreadId)}/messages`, { content: text });
+    const res = await postJSON(`/api/chats/${encodeURIComponent(appState.chatThreadId)}/messages`, { content: text, context });
     typing.remove();
     if (res && res.ok && res.assistant) {
       msgs.insertAdjacentHTML("beforeend", renderMsgBubble(res.assistant));
@@ -1905,6 +1983,50 @@ async function sendChatMessage() {
   input.disabled = false;
   $("#chat-send").disabled = false;
   input.focus();
+}
+
+// --- Push Notifications ---
+
+async function pushCanSubscribe() {
+  return 'serviceWorker' in navigator && 'PushManager' in window;
+}
+
+async function pushSubscribe() {
+  if (!await pushCanSubscribe()) return false;
+  const reg = await navigator.serviceWorker.ready;
+  const key = (await getJSON('/api/push/public_key')).key;
+  const sub = await reg.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: urlB64ToUint8Array(key)
+  });
+  const res = await postJSON('/api/push/subscribe', { subscription: sub.toJSON() });
+  localStorage.setItem('hub_push_enabled', '1');
+  return res.ok;
+}
+
+async function pushUnsubscribe() {
+  const reg = await navigator.serviceWorker.ready;
+  const sub = await reg.pushManager.getSubscription();
+  if (!sub) return false;
+  await postJSON('/api/push/unsubscribe', { endpoint: sub.endpoint });
+  await sub.unsubscribe();
+  localStorage.setItem('hub_push_enabled', '0');
+  return true;
+}
+
+async function pushIsEnabled() {
+  if (!await pushCanSubscribe()) return false;
+  const reg = await navigator.serviceWorker.ready;
+  const sub = await reg.pushManager.getSubscription();
+  return !!sub;
+}
+
+function urlB64ToUint8Array(base64) {
+  const padding = '='.repeat((4 - base64.length % 4) % 4);
+  const raw = atob((base64 + padding).replace(/-/g, '+').replace(/_/g, '/'));
+  const arr = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+  return arr;
 }
 
 document.addEventListener("DOMContentLoaded", init);

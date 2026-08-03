@@ -71,10 +71,30 @@ def generate_daily_report(tasks: list[dict], weather_text: str) -> str:
     return f"Tagesbericht konnte nicht generiert werden: {res.get('error')}"
 
 
-def answer_user_question(history: list[dict]) -> dict:
-    system_msg = {
-        "role": "system",
-        "content": "Du bist Hermes, Danny's persönlicher KI-Assistent. Antworte kurz, präzise, lösungsorientiert. Keine Füllwörter. Du kennst Danny's Projekte: Party Arena, KI-Videos, Hochzeit, Server, Klavier-Coach, Bangkok."
-    }
+def answer_user_question(history: list[dict], context: dict = None) -> dict:
+    base = "Du bist Hermes, Danny's persönlicher KI-Assistent. Antworte kurz, präzise, lösungsorientiert. Keine Füllwörter. Du kennst Danny's Projekte: Party Arena, KI-Videos, Hochzeit, Server, Klavier-Coach, Bangkok."
+    if context:
+        parts = []
+        page = (context.get("page") or "").strip()
+        project = (context.get("project") or "").strip()
+        task_ids = context.get("task_ids") or []
+        if page == "home":
+            parts.append("Danny ist gerade auf der Startseite seines HUB-Dashboards.")
+        elif page == "projects":
+            parts.append("Danny schaut sich seine Projektübersicht an.")
+        elif page == "project" and project:
+            parts.append(f"Danny schaut das Projekt '{project}' an.")
+        elif page == "chat" or page == "chatthread":
+            if project:
+                parts.append(f"Danny ist im Hermes-Chat und hat das Projekt '{project}' geöffnet.")
+            else:
+                parts.append("Danny ist im Hermes-Chat.")
+        elif page:
+            parts.append(f"Danny ist auf der Seite '{page}'.")
+        if task_ids and isinstance(task_ids, list):
+            parts.append(f"Relevante Task-IDs: {', '.join(str(t) for t in task_ids[:10])}.")
+        if parts:
+            base += " " + " ".join(parts)
+    system_msg = {"role": "system", "content": base}
     messages = [system_msg] + history
     return chat_completion(messages, timeout=60)
