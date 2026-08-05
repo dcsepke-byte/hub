@@ -80,6 +80,7 @@ const PAGES = {
   chat: renderChat,
   chatthread: renderChatThread,
   lydia: renderLydia,
+  customize: renderCustomize,
 };
 
 function parseHash() {
@@ -429,6 +430,7 @@ function bindAppClicks() {
       else if (id === "explorer") navigate("explorer");
       else if (id === "chat") navigate("chat");
       else if (id === "settings") navigate("settings");
+      else if (id === "customize") navigate("customize");
       else if (id === "notizen") navigate("notes");
       else if (id === "budget") navigate("budget");
       else if (id === "health") navigate("health");
@@ -436,8 +438,175 @@ function bindAppClicks() {
   });
 }
 
+// --- Customize Page ---
+function renderCustomize(container) {
+  const layout = getLayout();
+  const hidden = DEFAULT_LAYOUT.filter(id => !layout.includes(id));
+
+  function renderPreview() {
+    const preview = container.querySelector(".customize-preview");
+    if (!preview) return;
+    preview.innerHTML = layout.map(id => `<div class="cust-preview-chip">${WIDGET_LABELS[id]||id}</div>`).join("");
+  }
+
+  function renderList() {
+    const list = container.querySelector(".customize-list");
+    if (!list) return;
+    list.innerHTML = "";
+    // Visible widgets first (in layout order)
+    layout.forEach((id, idx) => {
+      const row = document.createElement("div");
+      row.className = "customize-row";
+      row.dataset.id = id;
+      row.draggable = true;
+      row.innerHTML = `
+        <div class="widget-handle">⋮⋮</div>
+        <span class="cust-label">${WIDGET_LABELS[id]||id}</span>
+        <label class="widget-toggle">
+          <input type="checkbox" checked data-id="${id}">
+          <span class="toggle-slider"></span>
+        </label>`;
+      row.querySelector(".widget-toggle input").addEventListener("change", (e) => {
+        if (!e.target.checked) {
+          layout.splice(layout.indexOf(id), 1);
+          hidden.push(id);
+        } else {
+          hidden.splice(hidden.indexOf(id), 1);
+          layout.push(id);
+        }
+        renderList();
+        renderPreview();
+      });
+      // Drag handlers
+      row.addEventListener("dragstart", (e) => { e.dataTransfer.setData("text/plain", id); row.classList.add("dragging"); });
+      row.addEventListener("dragend", () => { row.classList.remove("dragging"); container.querySelectorAll(".customize-row").forEach(r=>r.classList.remove("drag-over")); });
+      row.addEventListener("dragover", (e) => { e.preventDefault(); row.classList.add("drag-over"); });
+      row.addEventListener("dragleave", () => row.classList.remove("drag-over"));
+      row.addEventListener("drop", (e) => {
+        e.preventDefault();
+        row.classList.remove("drag-over");
+        const fromId = e.dataTransfer.getData("text/plain");
+        const fromIdx = layout.indexOf(fromId);
+        const toIdx = layout.indexOf(id);
+        if (fromIdx !== -1 && toIdx !== -1 && fromIdx !== toIdx) {
+          layout.splice(fromIdx, 1);
+          layout.splice(toIdx > fromIdx ? toIdx - 1 : toIdx, 0, fromId);
+          renderList();
+          renderPreview();
+        }
+      });
+      // Touch drag reorder
+      let touchStartY = 0, touchDragging = false, touchClone = null;
+      row.addEventListener("touchstart", (e) => {
+        if (e.target.closest(".widget-toggle")) return;
+        touchStartY = e.touches[0].clientY;
+        row.classList.add("touch-dragging");
+        touchDragging = false;
+      });
+      row.addEventListener("touchmove", (e) => {
+        if (!row.classList.contains("touch-dragging")) return;
+        const dy = e.touches[0].clientY - touchStartY;
+        if (Math.abs(dy) > 15 && !touchDragging) {
+          touchDragging = true;
+          touchClone = row.cloneNode(true);
+          touchClone.style.position = "fixed";
+          touchClone.style.zIndex = "999";
+          touchClone.style.opacity = "0.8";
+          touchClone.style.pointerEvents = "none";
+          touchClone.style.width = row.offsetWidth + "px";
+          document.body.appendChild(touchClone);
+        }
+        if (touchDragging && touchClone) {
+          touchClone.style.left = row.getBoundingClientRect().left + "px";
+          touchClone.style.top = (e.touches[0].clientY - 20) + "px";
+          const rows = [...container.querySelectorAll(".customize-row")];
+          const midY = e.touches[0].clientY;
+          rows.forEach(r => { r.classList.remove("drag-over"); if (r !== row && midY > r.getBoundingClientRect().top && midY < r.getBoundingClientRect().bottom) r.classList.add("drag-over"); });
+        }
+        e.preventDefault();
+      }, {passive: false});
+      row.addEventListener("touchend", (e) => {
+        row.classList.remove("touch-dragging");
+        if (touchClone) { touchClone.remove(); touchClone = null; }
+        if (!touchDragging) return;
+        touchDragging = false;
+        const endY = e.changedTouches[0].clientY;
+        const rows = [...container.querySelectorAll(".customize-row")];
+        const targetRow = rows.find(r => r !== row && endY > r.getBoundingClientRect().top && endY < r.getBoundingClientRect().bottom);
+        if (targetRow) {
+          const fromIdx = layout.indexOf(id);
+          const toIdx = layout.indexOf(targetRow.dataset.id);
+          if (fromIdx !== -1 && toIdx !== -1 && fromIdx !== toIdx) {
+            layout.splice(fromIdx, 1);
+            layout.splice(toIdx > fromIdx ? toIdx - 1 : toIdx, 0, id);
+            renderList();
+            renderPreview();
+          }
+        }
+        container.querySelectorAll(".customize-row").forEach(r => r.classList.remove("drag-over"));
+      });
+      list.appendChild(row);
+    });
+    // Hidden widgets
+    if (hidden.length > 0) {
+      const sep = document.createElement("div");
+      sep.className = "cust-separator";
+      sep.textContent = "Ausgeblendet";
+      list.appendChild(sep);
+      hidden.forEach(id => {
+        const row = document.createElement("div");
+        row.className = "customize-row hidden";
+        row.dataset.id = id;
+        row.innerHTML = `
+          <div class="widget-handle dim">⋮⋮</div>
+          <span class="cust-label">${WIDGET_LABELS[id]||id}</span>
+          <label class="widget-toggle">
+            <input type="checkbox" data-id="${id}">
+            <span class="toggle-slider"></span>
+          </label>`;
+        row.querySelector(".widget-toggle input").addEventListener("change", (e) => {
+          if (e.target.checked) {
+            hidden.splice(hidden.indexOf(id), 1);
+            layout.push(id);
+          }
+          renderList();
+          renderPreview();
+        });
+        list.appendChild(row);
+      });
+    }
+  }
+
+  container.innerHTML = `
+    <h2 class="page-title">🧩 Homescreen anpassen</h2>
+    <p class="page-subtitle">Widgets per Drag & Drop sortieren, ein-/ausblenden</p>
+    <div class="customize-preview glass"></div>
+    <div class="customize-list glass"></div>
+    <div class="customize-actions">
+      <button class="btn-primary" id="cust-save">✅ Speichern</button>
+      <button class="btn-danger" id="cust-reset">🔄 Zurücksetzen</button>
+    </div>`;
+  renderPreview();
+  renderList();
+  container.querySelector("#cust-save").addEventListener("click", () => {
+    saveLayout(layout);
+    navigate("home");
+  });
+  container.querySelector("#cust-reset").addEventListener("click", async () => {
+    const ok = await confirmSheet("Layout auf Standard zurücksetzen?");
+    if (ok) {
+      resetLayout();
+      layout.splice(0, layout.length, ...DEFAULT_LAYOUT);
+      hidden.splice(0, hidden.length);
+      renderList();
+      renderPreview();
+    }
+  });
+}
+
 // --- Home ---
 async function renderHome(container) {
+  const layout = getLayout();
   container.innerHTML = `
     <div class="app-grid">
       ${appIcon("party-arena", "Party Arena")}
@@ -450,6 +619,7 @@ async function renderHome(container) {
       ${appIcon("explorer", "Explorer")}
       ${appIcon("health", "Gesundheit")}
       ${appIcon("chat", "Hermes")}
+      ${appIcon("customize", "Anpassen", "🧩")}
       ${appIcon("settings", "Settings")}
     </div>
     <div id="suggestion-chip" class="suggestion-chip" style="opacity:0;transform:translateY(-12px);transition:opacity 0.5s ease, transform 0.5s ease;cursor:pointer;">
@@ -458,33 +628,53 @@ async function renderHome(container) {
       <div class="cta">Tasks →</div>
     </div>
     <h2 class="page-title">Übersicht</h2>
-    <div class="grid grid-2">
-      <div class="card" id="weather-card">${skeletonCard()}</div>
-      <div class="card chat-widget">
-        <div class="chat-header"><div class="chat-title">💬 Hermes Chat</div><button class="chat-close">×</button></div>
-        <div class="chat-messages" id="chat-box"></div>
-        <form class="chat-input" id="chat-form"><input type="text" id="chat-input" placeholder="Frage Hermes..." autocomplete="off"><button type="submit" class="btn-primary">➤</button></form>
-      </div>
-      <div class="card" id="week-view-card">
-        <h3>🗓️ Wochenübersicht</h3>
-        <div id="week-title" class="page-subtitle"></div>
-        <div class="week-view" id="week-view">${skeletonList(7)}</div>
-        <button class="btn-secondary" id="add-event-btn" style="margin-top:12px;width:100%">+ Termin</button>
-      </div>
-      <div class="card" id="calendar-card"><h3>Termine heute</h3><div id="today-events">${skeletonList(3)}</div></div>
-      <div class="card" id="tasks-card"><h3>✅ Heutige To-Do</h3><div class="task-list">${skeletonList(4)}</div></div>
-      <div class="card" id="timer-card"><h3>⏱️ Timer</h3><div id="timer-body">${skeletonCard()}</div></div>
-      <div class="card" id="water-card"><h3>💧 Wasser</h3><div id="water-body">${skeletonCard()}</div></div>
-      <div class="card" id="stocks-card"><h3>📈 Watchlist</h3><div class="task-list">${skeletonList(3)}</div></div>
-      <div class="card" id="news-card"><h3>📰 News</h3><div class="news-tabs" id="news-tabs"><button data-cat="top" class="active">Top</button><button data-cat="tech">Tech</button><button data-cat="wirtschaft">Wirtschaft</button><button data-cat="sport">Sport</button><button data-cat="wissenschaft">Wissenschaft</button></div><div id="news-list">${skeletonList(3)}</div></div>
-    </div>`;
+    <div class="grid grid-2" id="home-grid"></div>`;
   bindAppClicks();
+
+  // Render widgets in layout order
+  const grid = container.querySelector("#home-grid");
+  layout.forEach(id => {
+    const card = document.createElement("div");
+    card.className = id === "chat" ? "card home-widget chat-widget" : "card home-widget";
+    card.id = `${id}-card`;
+    grid.appendChild(card);
+    if (WIDGET_RENDERERS[id]) WIDGET_RENDERERS[id](card);
+  });
+
+  // Init data-dependent widgets
   initChat();
   bindSuggestionChip();
   initNewsTabs();
-  await Promise.all([loadWeather(), loadTodayTasks(), loadTodayEvents(), loadNews(), loadStocks(), loadCalendarWeek(), loadTimer(), loadWater()]);
+
+  // Load data for visible data widgets
+  const visibleData = layout.filter(id => DATA_WIDGETS.includes(id));
+  const loaders = [];
+  if (visibleData.includes("weather")) loaders.push(loadWeather());
+  if (visibleData.includes("chat")) {} // already init'd
+  if (visibleData.includes("weekview")) loaders.push(loadCalendarWeek());
+  if (visibleData.includes("calendar")) loaders.push(loadTodayEvents());
+  if (visibleData.includes("tasks")) loaders.push(loadTodayTasks());
+  if (visibleData.includes("timer")) loaders.push(loadTimer());
+  if (visibleData.includes("water")) loaders.push(loadWater());
+  if (visibleData.includes("stocks")) loaders.push(loadStocks());
+  if (visibleData.includes("news")) loaders.push(loadNews());
+  await Promise.all(loaders);
+
   refreshSuggestionChip();
-  initPullToRefresh(() => Promise.all([loadWeather(), loadTodayTasks(), loadTodayEvents(), loadNews(), loadStocks(), loadCalendarWeek(), loadTimer(), loadWater()]).then(refreshSuggestionChip));
+  initPullToRefresh(async () => {
+    const p = [];
+    if (visibleData.includes("weather")) p.push(loadWeather());
+    if (visibleData.includes("chat")) {} // socket handles it
+    if (visibleData.includes("weekview")) p.push(loadCalendarWeek());
+    if (visibleData.includes("calendar")) p.push(loadTodayEvents());
+    if (visibleData.includes("tasks")) p.push(loadTodayTasks());
+    if (visibleData.includes("timer")) p.push(loadTimer());
+    if (visibleData.includes("water")) p.push(loadWater());
+    if (visibleData.includes("stocks")) p.push(loadStocks());
+    if (visibleData.includes("news")) p.push(loadNews());
+    await Promise.all(p);
+    refreshSuggestionChip();
+  });
 }
 
 function statusBadgeClass(status) {
