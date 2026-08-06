@@ -327,7 +327,7 @@ function renderConverter(container) {
 // Default layout: all widget IDs in display order
 const DEFAULT_LAYOUT = [
   "weather","chat","weekview","calendar","tasks","timer","water","stocks","news",
-  "tictactoe","snake","memory","dice","countdown","converter"
+  "tictactoe","snake","memory","dice","countdown","converter","currency"
 ];
 
 // Human-readable widget labels
@@ -371,6 +371,50 @@ function getLayout() {
     }
   } catch(e) {}
   return [...DEFAULT_LAYOUT];
+}
+
+// --- Währungsrechner ---
+function renderCurrency(container) {
+  container.innerHTML = `
+    <h3>💱 Währungsrechner</h3>
+    <div style="display:flex;gap:6px;margin:8px 0">
+      <input type="number" id="curr-amount" value="1" min="0" step="0.01" style="flex:1;padding:10px;border-radius:10px;border:none;background:var(--surface-2);color:var(--text);font-size:15px;min-width:0">
+      <select id="curr-from" style="padding:10px;border-radius:10px;border:none;background:var(--surface-2);color:var(--text);font-size:14px;min-width:0">
+        <option value="EUR">EUR</option><option value="USD" selected>USD</option><option value="GBP">GBP</option><option value="JPY">JPY</option><option value="CHF">CHF</option><option value="THB">THB</option>
+      </select>
+    </div>
+    <div style="text-align:center;font-size:22px;margin:6px 0">↓</div>
+    <div style="display:flex;gap:6px;margin:8px 0">
+      <input type="number" id="curr-result" readonly style="flex:1;padding:10px;border-radius:10px;border:none;background:var(--surface-3);color:var(--text);font-size:15px;min-width:0;font-weight:700">
+      <select id="curr-to" style="padding:10px;border-radius:10px;border:none;background:var(--surface-2);color:var(--text);font-size:14px;min-width:0">
+        <option value="EUR" selected>EUR</option><option value="USD">USD</option><option value="GBP">GBP</option><option value="JPY">JPY</option><option value="CHF">CHF</option><option value="THB">THB</option>
+      </select>
+    </div>
+    <div id="curr-rate" style="text-align:center;font-size:11px;color:var(--text-tertiary);margin-top:4px">Lade Kurs...</div>`;
+  const amount = container.querySelector("#curr-amount");
+  const from = container.querySelector("#curr-from");
+  const to = container.querySelector("#curr-to");
+  const result = container.querySelector("#curr-result");
+  const rateEl = container.querySelector("#curr-rate");
+
+  async function convert() {
+    const a = parseFloat(amount.value) || 0;
+    const f = from.value, t = to.value;
+    if (f === t) { result.value = a.toFixed(2); rateEl.textContent = "1 " + f + " = 1 " + t; return; }
+    try {
+      const r = await fetch(`https://api.frankfurter.app/latest?amount=${a}&from=${f}&to=${t}`);
+      const d = await r.json();
+      if (d.rates && d.rates[t]) {
+        result.value = d.rates[t].toFixed(2);
+        rateEl.textContent = `1 ${f} = ${(d.rates[t] / a).toFixed(4)} ${t}`;
+      }
+    } catch(e) { rateEl.textContent = "Kurs nicht verfügbar"; }
+  }
+
+  amount.addEventListener("input", convert);
+  from.addEventListener("change", convert);
+  to.addEventListener("change", convert);
+  convert();
 }
 
 // Save layout to localStorage
