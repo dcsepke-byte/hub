@@ -403,7 +403,7 @@ function renderCurrency(container) {
     const f = from.value, t = to.value;
     if (f === t) { result.value = a.toFixed(2); rateEl.textContent = "1 " + f + " = 1 " + t; return; }
     try {
-      const r = await fetch(`https://api.frankfurter.app/latest?amount=${a}&from=${f}&to=${t}`);
+      const r = await fetch(`https://api.frankfurter.dev/v1/latest?amount=${a}&from=${f}&to=${t}`);
       const d = await r.json();
       if (d.rates && d.rates[t]) {
         result.value = d.rates[t].toFixed(2);
