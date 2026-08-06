@@ -335,7 +335,7 @@ const WIDGET_LABELS = {
   weather:"Wetter",chat:"Chat",weekview:"Wochenübersicht",calendar:"Termine",
   tasks:"To-Do",timer:"Timer",water:"Wasser",stocks:"Watchlist",news:"News",
   tictactoe:"Tic Tac Toe",snake:"Snake",memory:"Memory",dice:"Würfel",
-  countdown:"Countdown",converter:"Converter"
+  countdown:"Countdown",converter:"Converter",currency:"Währung"
 };
 
 // Widget renderers – maps widget ID to rendering function
@@ -356,6 +356,7 @@ const WIDGET_RENDERERS = {
   dice: (c)=>{c.innerHTML=`<h3>🎲 Würfel</h3><div id="dice-body"></div>`;renderDice(c.querySelector("#dice-body"));},
   countdown: (c)=>{c.innerHTML=`<h3>⏱️ Countdown</h3><div id="cd-body"></div>`;renderCountdown(c.querySelector("#cd-body"));},
   converter: (c)=>{c.innerHTML=`<h3>🔄 Converter</h3><div id="conv-body"></div>`;renderConverter(c.querySelector("#conv-body"));},
+  currency: (c)=>{c.innerHTML=`<h3>💱 Währungsrechner</h3><div id="curr-body"></div>`;renderCurrency(c.querySelector("#curr-body"));},
 };
 
 // Data widgets that need async loading
