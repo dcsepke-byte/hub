@@ -11,7 +11,7 @@
   <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='images/icon.svg') }}">
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='images/icon-192.png') }}">
   <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260803d">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260809a">
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="{{ url_for('static', filename='js/sw-register.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/offline-db.js') }}" defer></script>
@@ -73,14 +73,14 @@
 
   <nav id="bottomNav" class="bottom-nav glass">
     <button data-page="home" class="active">🏠<span>Home</span></button>
-    <button data-page="projects">📁<span>Projekte</span></button>
     <button data-page="tasks">✅<span>Tasks</span></button>
-    <button data-page="explorer">📂<span>Dateien</span></button>
-    <button data-page="settings">⚙️<span>Einstell.</span></button>
+    <button data-page="chat">💬<span>Chat</span></button>
+    <button data-page="calendarapp">📅<span>Kalender</span></button>
+    <button data-page="lydia">👸<span>Lydia</span></button>
     <button class="fab-small" id="fab">+</button>
   </nav>
 
   <script src="{{ url_for('static', filename='js/widgets.js') }}" defer></script>
-  <script src="{{ url_for('static', filename='js/app.js') }}?v=20260803f" defer></script>
+  <script src="{{ url_for('static', filename='js/app.js') }}?v=20260809a" defer></script>
 </body>
 </html>

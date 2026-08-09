@@ -16,6 +16,7 @@ from app import notes, budget, timetrack, health, priorities
 from app import chats as chats_module
 from app import push as push_module
 from app import lydia
+from app import server as server_module
 
 PROJECTS_DATA = []
 
@@ -668,6 +669,14 @@ def api_create_recipe():
 @require_login
 def api_delete_recipe(recipe_id):
     return jsonify(lydia.delete_recipe(recipe_id))
+
+
+# --- Server Stats ---
+
+@app.route("/api/server")
+@require_login
+def api_server_stats():
+    return jsonify(server_module.get_server_stats())
 
 
 # --- Static file serving for uploads ---

@@ -81,6 +81,17 @@ const PAGES = {
   chatthread: renderChatThread,
   lydia: renderLydia,
   customize: renderCustomize,
+  newsapp: renderNewsApp,
+  weatherapp: renderWeatherApp,
+  stocksapp: renderStocksApp,
+  gamesapp: renderGamesApp,
+  toolsapp: renderToolsApp,
+  financeapp: renderFinanceApp,
+  timerapp: renderTimerApp,
+  waterapp: renderWaterApp,
+  calendarapp: renderCalendarApp,
+  server: renderServerPage,
+  embed: renderEmbedPage,
 };
 
 function parseHash() {
@@ -131,10 +142,14 @@ function initTheme() {
   const saved = localStorage.getItem("hub_theme");
   if (saved) document.body.className = saved;
   $("#themeToggle")?.addEventListener("click", () => {
-    const isLight = document.body.classList.contains("light");
-    document.body.className = isLight ? "dark" : "light";
-    localStorage.setItem("hub_theme", isLight ? "dark" : "light");
-    // Icons dem Theme anpassen (monochrome Varianten neu laden)
+    const isLight = document.body.classList.contains("light") || document.body.classList.contains("theme-light");
+    // Cycle through themes
+    const themes = ["dark", "light", "theme-blue", "theme-green", "theme-orange", "theme-rose", "theme-mono"];
+    const cur = themes.find(t => document.body.classList.contains(t)) || "dark";
+    const idx = themes.indexOf(cur);
+    const next = themes[(idx + 1) % themes.length];
+    document.body.className = next;
+    localStorage.setItem("hub_theme", next);
     if (appState.page === "home") renderHome($("#content"));
   });
 }
@@ -434,6 +449,14 @@ function bindAppClicks() {
       else if (id === "notizen") navigate("notes");
       else if (id === "budget") navigate("budget");
       else if (id === "health") navigate("health");
+      else if (id === "lydia") navigate("lydia");
+      else if (id === "newsapp") navigate("newsapp");
+      else if (id === "weatherapp") navigate("weatherapp");
+      else if (id === "stocksapp") navigate("stocksapp");
+      else if (id === "gamesapp") navigate("gamesapp");
+      else if (id === "toolsapp") navigate("toolsapp");
+      else if (id === "server") navigate("server");
+      else if (id === "embed") navigate("embed");
     });
   });
 }
@@ -606,7 +629,6 @@ function renderCustomize(container) {
 
 // --- Home ---
 async function renderHome(container) {
-  const layout = getLayout();
   container.innerHTML = `
     <div class="app-grid">
       ${appIcon("party-arena", "Party Arena")}
@@ -619,6 +641,14 @@ async function renderHome(container) {
       ${appIcon("explorer", "Explorer")}
       ${appIcon("health", "Gesundheit")}
       ${appIcon("chat", "Hermes")}
+      ${appIcon("lydia", "Lydia")}
+      ${appIcon("newsapp", "News", "📰")}
+      ${appIcon("weatherapp", "Wetter", "🌤️")}
+      ${appIcon("stocksapp", "Stocks", "📈")}
+      ${appIcon("gamesapp", "Spiele", "🎮")}
+      ${appIcon("toolsapp", "Tools", "🔧")}
+      ${appIcon("server", "Server", "🖥️")}
+      ${appIcon("embed", "Embed", "🌐")}
       ${appIcon("customize", "Anpassen", "🧩")}
       ${appIcon("settings", "Settings")}
     </div>
@@ -626,55 +656,11 @@ async function renderHome(container) {
       <div class="icon">⚡</div>
       <div class="text" id="chip-text">Lade Tasks...</div>
       <div class="cta">Tasks →</div>
-    </div>
-    <h2 class="page-title">Übersicht</h2>
-    <div class="grid grid-2" id="home-grid"></div>`;
+    </div>`;
   bindAppClicks();
-
-  // Render widgets in layout order
-  const grid = container.querySelector("#home-grid");
-  layout.forEach(id => {
-    const card = document.createElement("div");
-    card.className = id === "chat" ? "card home-widget chat-widget" : "card home-widget";
-    card.id = `${id}-card`;
-    grid.appendChild(card);
-    if (WIDGET_RENDERERS[id]) WIDGET_RENDERERS[id](card);
-  });
-
-  // Init data-dependent widgets
-  initChat();
   bindSuggestionChip();
-  initNewsTabs();
-
-  // Load data for visible data widgets
-  const visibleData = layout.filter(id => DATA_WIDGETS.includes(id));
-  const loaders = [];
-  if (visibleData.includes("weather")) loaders.push(loadWeather());
-  if (visibleData.includes("chat")) {} // already init'd
-  if (visibleData.includes("weekview")) loaders.push(loadCalendarWeek());
-  if (visibleData.includes("calendar")) loaders.push(loadTodayEvents());
-  if (visibleData.includes("tasks")) loaders.push(loadTodayTasks());
-  if (visibleData.includes("timer")) loaders.push(loadTimer());
-  if (visibleData.includes("water")) loaders.push(loadWater());
-  if (visibleData.includes("stocks")) loaders.push(loadStocks());
-  if (visibleData.includes("news")) loaders.push(loadNews());
-  await Promise.all(loaders);
-
   refreshSuggestionChip();
-  initPullToRefresh(async () => {
-    const p = [];
-    if (visibleData.includes("weather")) p.push(loadWeather());
-    if (visibleData.includes("chat")) {} // socket handles it
-    if (visibleData.includes("weekview")) p.push(loadCalendarWeek());
-    if (visibleData.includes("calendar")) p.push(loadTodayEvents());
-    if (visibleData.includes("tasks")) p.push(loadTodayTasks());
-    if (visibleData.includes("timer")) p.push(loadTimer());
-    if (visibleData.includes("water")) p.push(loadWater());
-    if (visibleData.includes("stocks")) p.push(loadStocks());
-    if (visibleData.includes("news")) p.push(loadNews());
-    await Promise.all(p);
-    refreshSuggestionChip();
-  });
+  initPullToRefresh(async () => { refreshSuggestionChip(); });
 }
 
 function statusBadgeClass(status) {
@@ -1476,10 +1462,34 @@ function formatBytes(b) {
 // --- Settings ---
 function renderSettings(container) {
   const isDark = document.body.classList.contains("dark");
-  container.innerHTML = `<div class="back-home"><button class="btn-secondary" id="back-home">← Home</button></div><h2 class="page-title">Settings</h2><div class="grid grid-2"><div class="card"><h3>🎨 Erscheinungsbild</h3><div class="setting-row"><label>Dark Mode</label><input type="checkbox" id="dark-toggle" ${isDark ? "checked" : ""}></div></div><div class="card"><h3>🔌 Integrationen</h3><div class="integration-list"><div class="integration-item ok"><span class="status-dot"></span> Notion</div><div class="integration-item ok"><span class="status-dot"></span> Open-Meteo Wetter</div><div class="integration-item ok"><span class="status-dot"></span> DeepSeek KI</div><div class="integration-item gap"><span class="status-dot"></span> Google Calendar (Stufe 2)</div></div></div><div class="card"><h3>⏱️ Auto-Logout</h3><div class="setting-row"><label>Nach Inaktivität abmelden</label></div><div style="display:flex;gap:6px"><input type="number" id="idle-minutes" min="1" max="240" value="${localStorage.getItem("hub_idle_minutes") || 30}" style="flex:1;padding:9px 11px;border-radius:10px;border:none;background:var(--surface-2);color:var(--text);font-size:14px"><button class="btn-secondary" id="idle-save">Speichern</button></div><p style="font-size:11px;color:var(--text-tertiary);margin:6px 0 0">60 Sekunden vor Ablauf erscheint eine Warnung.</p></div><div class="card"><h3>🔔 Push-Benachrichtigungen</h3><div class="setting-row"><label>Benachrichtigungen</label><input type="checkbox" id="push-toggle"></div><p style="font-size:11px;color:var(--text-tertiary);margin:6px 0 0">Erhalte Benachrichtigungen für Tasks &amp; Termine direkt auf dein Gerät.</p></div><div class="card" style="grid-column:1/-1"><h3>🔐 Sicherheit</h3><div class="setting-row"><label>Passwort ändern</label><button class="btn-secondary" id="toggle-pw">Ändern</button></div><form id="pw-form" style="display:none; margin-top:10px"><input type="password" id="current-pw" placeholder="Aktuelles Passwort" required><input type="password" id="new-pw" placeholder="Neues Passwort" required><button type="submit" class="btn-primary">Speichern</button><pre id="pw-result" style="margin-top:10px; word-break:break-all; font-size:12px; color:var(--text-tertiary)"></pre></form></div></div>`;
+  container.innerHTML = `<div class="back-home"><button class="btn-secondary" id="back-home">← Home</button></div><h2 class="page-title">Settings</h2><div class="grid grid-2"><div class="card"><h3>🎨 Erscheinungsbild</h3><div class="setting-row"><label>Dark Mode</label><input type="checkbox" id="dark-toggle" ${isDark ? "checked" : ""}></div>
+    <div class="theme-picker" style="margin-top:12px">
+      <h4 style="font-size:12px;color:var(--text-secondary);margin:0 0 8px">Theme-Galerie</h4>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+        <div class="theme-card active" data-theme="dark"><div class="theme-preview" style="background:linear-gradient(135deg,#1a1a2e,#16213e)"></div><span>Lila</span></div>
+        <div class="theme-card" data-theme="theme-blue"><div class="theme-preview" style="background:linear-gradient(135deg,#1e3a5f,#2563eb)"></div><span>Blau</span></div>
+        <div class="theme-card" data-theme="theme-green"><div class="theme-preview" style="background:linear-gradient(135deg,#064e3b,#059669)"></div><span>Grün</span></div>
+        <div class="theme-card" data-theme="theme-orange"><div class="theme-preview" style="background:linear-gradient(135deg,#7c2d12,#ea580c)"></div><span>Orange</span></div>
+        <div class="theme-card" data-theme="theme-rose"><div class="theme-preview" style="background:linear-gradient(135deg,#881337,#e11d48)"></div><span>Rose</span></div>
+        <div class="theme-card" data-theme="theme-mono"><div class="theme-preview" style="background:linear-gradient(135deg,#1c1c1e,#3a3a3c)"></div><span>Mono</span></div>
+      </div>
+    </div></div><div class="card"><h3>🔌 Integrationen</h3><div class="integration-list"><div class="integration-item ok"><span class="status-dot"></span> Notion</div><div class="integration-item ok"><span class="status-dot"></span> Open-Meteo Wetter</div><div class="integration-item ok"><span class="status-dot"></span> DeepSeek KI</div><div class="integration-item gap"><span class="status-dot"></span> Google Calendar (Stufe 2)</div></div></div><div class="card"><h3>⏱️ Auto-Logout</h3><div class="setting-row"><label>Nach Inaktivität abmelden</label></div><div style="display:flex;gap:6px"><input type="number" id="idle-minutes" min="1" max="240" value="${localStorage.getItem("hub_idle_minutes") || 30}" style="flex:1;padding:9px 11px;border-radius:10px;border:none;background:var(--surface-2);color:var(--text);font-size:14px"><button class="btn-secondary" id="idle-save">Speichern</button></div><p style="font-size:11px;color:var(--text-tertiary);margin:6px 0 0">60 Sekunden vor Ablauf erscheint eine Warnung.</p></div><div class="card"><h3>🔔 Push-Benachrichtigungen</h3><div class="setting-row"><label>Benachrichtigungen</label><input type="checkbox" id="push-toggle"></div><p style="font-size:11px;color:var(--text-tertiary);margin:6px 0 0">Erhalte Benachrichtigungen für Tasks &amp; Termine direkt auf dein Gerät.</p></div><div class="card" style="grid-column:1/-1"><h3>🔐 Sicherheit</h3><div class="setting-row"><label>Passwort ändern</label><button class="btn-secondary" id="toggle-pw">Ändern</button></div><form id="pw-form" style="display:none; margin-top:10px"><input type="password" id="current-pw" placeholder="Aktuelles Passwort" required><input type="password" id="new-pw" placeholder="Neues Passwort" required><button type="submit" class="btn-primary">Speichern</button><pre id="pw-result" style="margin-top:10px; word-break:break-all; font-size:12px; color:var(--text-tertiary)"></pre></form></div></div>`;
   $("#back-home")?.addEventListener("click", () => navigate("home"));
   const toggle = $("#dark-toggle");
   toggle.addEventListener("change", () => { document.body.classList.toggle("dark", toggle.checked); document.body.classList.toggle("light", !toggle.checked); localStorage.setItem("hub_theme", toggle.checked ? "dark" : "light"); });
+  // Theme-Galerie Klick-Handler
+  container.querySelectorAll(".theme-card").forEach(card => {
+    card.addEventListener("click", () => {
+      const theme = card.dataset.theme;
+      document.body.className = theme;
+      localStorage.setItem("hub_theme", theme);
+      container.querySelectorAll(".theme-card").forEach(c => c.classList.toggle("active", c.dataset.theme === theme));
+      toggle.checked = theme === "dark" || theme === "light";
+    });
+  });
+  // Aktives Theme markieren
+  const curTheme = document.body.className || "dark";
+  container.querySelectorAll(".theme-card").forEach(c => c.classList.toggle("active", c.dataset.theme === curTheme));
   $("#toggle-pw")?.addEventListener("click", () => { const form = $("#pw-form"); form.style.display = form.style.display === "none" ? "block" : "none"; });
   // Push notification toggle
   pushIsEnabled().then(enabled => {
@@ -1501,7 +1511,7 @@ function renderSettings(container) {
 
 (function restoreTheme() {
   const saved = localStorage.getItem("hub_theme");
-  if (saved === "light") document.body.classList.replace("dark", "light");
+  if (saved) document.body.className = saved;
 })();
 
 // ===================== HUB v2.1 Features =====================
@@ -2303,9 +2313,379 @@ function urlB64ToUint8Array(base64) {
   return arr;
 }
 
+// ===== App-Pages (app-zentrischer Umbau) =====
+function appPageHeader(title, parentCb) {
+  return `<div class="back-home"><button class="btn-secondary" id="back-home">← Home</button></div><h2 class="page-title">${title}</h2>`;
+}
+
+// --- News App (Vollbild) ---
+async function renderNewsApp(container) {
+  container.innerHTML = appPageHeader("📰 News") + `
+    <div class="news-tabs" id="newsapp-tabs">
+      <button data-cat="top" class="active">Top</button>
+      <button data-cat="tech">Tech</button>
+      <button data-cat="wirtschaft">Wirtschaft</button>
+      <button data-cat="sport">Sport</button>
+      <button data-cat="wissenschaft">Wissenschaft</button>
+    </div>
+    <div id="newsapp-list">${skeletonList(10)}</div>`;
+  $("#back-home")?.addEventListener("click", () => navigate("home"));
+  const tabs = container.querySelector("#newsapp-tabs");
+  tabs.querySelectorAll("button").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      tabs.querySelectorAll("button").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      await loadNewsApp(btn.dataset.cat);
+    });
+  });
+  const active = tabs.querySelector(".active")?.dataset.cat || "top";
+  await loadNewsApp(active);
+  initPullToRefresh(async () => {
+    const cat = container.querySelector("#newsapp-tabs .active")?.dataset.cat || "top";
+    await loadNewsApp(cat);
+  });
+}
+
+async function loadNewsApp(category) {
+  const el = $("#newsapp-list");
+  if (!el) return;
+  try {
+    const data = await getJSON(`/api/news?category=${encodeURIComponent(category)}&limit=10`);
+    el.classList.remove("loader");
+    if (!data.ok || !data.items.length) { el.innerHTML = "<p class='empty-state'>News momentan nicht verfügbar.</p>"; return; }
+    el.innerHTML = data.items.map(n => `<a href="${escapeHtml(n.url)}" target="_blank" class="news-item" rel="noopener"><div class="news-title">${escapeHtml(n.title)}</div><div class="news-desc">${escapeHtml(n.description)}</div><div class="news-date">${n.published ? new Date(n.published).toLocaleString('de-DE', {weekday:'short', hour:'2-digit', minute:'2-digit'}) : ''}</div></a>`).join("");
+  } catch (e) { el.classList.remove("loader"); el.innerHTML = "<p class='empty-state'>Fehler beim Laden.</p>"; }
+}
+
+// --- Weather App (Vollbild) ---
+async function renderWeatherApp(container) {
+  container.innerHTML = appPageHeader("🌤️ Wetter") + `<div class="card" id="weatherapp-body">${skeletonCard()}</div>`;
+  $("#back-home")?.addEventListener("click", () => navigate("home"));
+  await loadWeatherApp();
+  initPullToRefresh(() => loadWeatherApp());
+}
+
+async function loadWeatherApp() {
+  const el = $("#weatherapp-body");
+  if (!el) return;
+  try {
+    const data = await getJSON("/api/weather");
+    if (!data.ok) { el.innerHTML = "<h3>🌤️ Wetter — Braunschweig</h3><p class='empty-state'>Wetterdaten nicht verfügbar.</p>"; return; }
+    const c = data.current, days = data.daily.slice(0, 7);
+    el.innerHTML = `<h3>🌤️ Wetter — Braunschweig</h3>
+      <div class="weather-main" style="justify-content:center;padding:16px 0">
+        <div class="icon" style="font-size:64px">${weatherIcon(c.code, c.is_day)}</div>
+        <div><div class="temp" style="font-size:48px;font-weight:800">${c.temp}°C</div>
+        <div class="weather-meta">Luftfeuchtigkeit ${c.humidity}% · Wind ${c.wind} km/h</div></div>
+      </div>
+      <h4 style="margin:0 0 8px;font-size:14px;color:var(--text-secondary)">7-Tage-Vorschau</h4>
+      <div class="forecast">${days.map(d => `<div class="forecast-day"><span class="icon" style="font-size:22px">${weatherIcon(d.code, 1)}</span><div class="temps">${d.min}° / ${d.max}°</div><div class="temps">${d.date.slice(5)}</div></div>`).join("")}</div>`;
+  } catch (e) { el.innerHTML = "<p class='empty-state'>Fehler.</p>"; }
+}
+
+// --- Stocks App (Vollbild) ---
+async function renderStocksApp(container) {
+  container.innerHTML = appPageHeader("📈 Watchlist") + `<div class="card" id="stocksapp-body">${skeletonList(4)}</div>`;
+  $("#back-home")?.addEventListener("click", () => navigate("home"));
+  await loadStocksApp();
+  initPullToRefresh(() => loadStocksApp());
+}
+
+async function loadStocksApp() {
+  const el = $("#stocksapp-body");
+  if (!el) return;
+  try {
+    const data = await getJSON("/api/stocks");
+    el.classList.remove("loader");
+    if (!data.ok) { el.innerHTML = `<h3>📈 Watchlist</h3><p class='empty-state'>${data.error || "Aktien nicht verfügbar"}</p>`; return; }
+    el.innerHTML = `<h3>📈 Watchlist</h3><div class="task-list">${data.items.map(s => `<div class="stock-card"><div class="stock-symbol">${s.symbol}</div><div class="stock-price"><div class="price">${s.price.toFixed(2)} $</div><div class="change ${s.change >= 0 ? 'stock-up' : 'stock-down'}">${s.change >= 0 ? '+' : ''}${s.change.toFixed(2)} (${s.percent >= 0 ? '+' : ''}${s.percent.toFixed(2)}%)</div></div></div>`).join("")}</div>
+      <form class="stock-form" id="stockapp-form"><input type="text" id="stockapp-symbol" placeholder="Symbol z.B. AAPL" maxlength="6"><button type="submit" class="btn-primary">+</button></form>`;
+    $("#stockapp-form")?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const sym = $("#stockapp-symbol").value.trim().toUpperCase();
+      const res = await postJSON("/api/stocks", { symbol: sym });
+      flash(res.ok ? `${sym} hinzugefügt` : (res.error || "Fehler"), res.ok ? "ok" : "error");
+      if (res.ok) loadStocksApp();
+    });
+  } catch (e) { el.classList.remove("loader"); el.innerHTML = "<h3>📈 Watchlist</h3><p class='empty-state'>Fehler.</p>"; }
+}
+
+// --- Games App (Grid aller 7 Spiele) ---
+function renderGamesApp(container) {
+  container.innerHTML = appPageHeader("🎮 Spiele") + `<div class="grid grid-2" id="games-grid"></div>`;
+  $("#back-home")?.addEventListener("click", () => navigate("home"));
+  const grid = container.querySelector("#games-grid");
+  const games = [
+    { id: "ttt-card", title: "Tic Tac Toe", render: (c) => { c.innerHTML = '<h3>🎮 Tic Tac Toe</h3><div id="ttt-game"></div>'; renderTicTacToe(c.querySelector("#ttt-game")); } },
+    { id: "snake-card", title: "Snake", render: (c) => { c.innerHTML = '<h3>🐍 Snake</h3><div id="snake-game"></div>'; renderSnake(c.querySelector("#snake-game")); } },
+    { id: "mem-card", title: "Memory", render: (c) => { c.innerHTML = '<h3>🧠 Memory</h3><div id="mem-game"></div>'; renderMemory(c.querySelector("#mem-game")); } },
+    { id: "dice-card", title: "Würfel", render: (c) => { c.innerHTML = '<h3>🎲 Würfel</h3><div id="dice-game"></div>'; renderDice(c.querySelector("#dice-game")); } },
+    { id: "cd-card", title: "Countdown", render: (c) => { c.innerHTML = '<h3>⏱️ Countdown</h3><div id="cd-game"></div>'; renderCountdown(c.querySelector("#cd-game")); } },
+    { id: "conv-card", title: "Converter", render: (c) => { c.innerHTML = '<h3>🔄 Converter</h3><div id="conv-game"></div>'; renderConverter(c.querySelector("#conv-game")); } },
+    { id: "curr-card", title: "Währung", render: (c) => { c.innerHTML = '<div id="curr-game"></div>'; renderCurrency(c.querySelector("#curr-game")); } },
+  ];
+  games.forEach(g => {
+    const card = document.createElement("div");
+    card.className = "card";
+    card.id = g.id;
+    grid.appendChild(card);
+    g.render(card);
+  });
+  initPullToRefresh(() => renderGamesApp(container));
+}
+
+// --- Tools App (Countdown, Converter, Dice, Währung) ---
+function renderToolsApp(container) {
+  container.innerHTML = appPageHeader("🔧 Tools") + `<div class="grid grid-2" id="tools-grid"></div>`;
+  $("#back-home")?.addEventListener("click", () => navigate("home"));
+  const grid = container.querySelector("#tools-grid");
+  [
+    { id: "tool-cd", title: "Countdown", render: (c) => { c.innerHTML = '<h3>⏱️ Countdown</h3><div id="tool-cd-body"></div>'; renderCountdown(c.querySelector("#tool-cd-body")); } },
+    { id: "tool-conv", title: "Converter", render: (c) => { c.innerHTML = '<h3>🔄 Converter</h3><div id="tool-conv-body"></div>'; renderConverter(c.querySelector("#tool-conv-body")); } },
+    { id: "tool-dice", title: "Würfel", render: (c) => { c.innerHTML = '<h3>🎲 Würfel</h3><div id="tool-dice-body"></div>'; renderDice(c.querySelector("#tool-dice-body")); } },
+    { id: "tool-curr", title: "Währung", render: (c) => { c.innerHTML = '<div id="tool-curr-body"></div>'; renderCurrency(c.querySelector("#tool-curr-body")); } },
+  ].forEach(g => {
+    const card = document.createElement("div");
+    card.className = "card";
+    card.id = g.id;
+    grid.appendChild(card);
+    g.render(card);
+  });
+  initPullToRefresh(() => renderToolsApp(container));
+}
+
+// --- Finance App (Budget + Währung) ---
+async function renderFinanceApp(container) {
+  container.innerHTML = appPageHeader("💰 Finanzen") + `<div class="grid grid-2"><div class="card" id="fin-budget">${skeletonCard()}</div><div class="card" id="fin-currency"><div id="fin-curr-body"></div></div></div>`;
+  $("#back-home")?.addEventListener("click", () => navigate("home"));
+  await loadFinanceBudget();
+  renderCurrency(container.querySelector("#fin-curr-body"));
+  initPullToRefresh(() => loadFinanceBudget());
+}
+
+async function loadFinanceBudget() {
+  const el = $("#fin-budget");
+  if (!el) return;
+  try {
+    const data = await getJSON("/api/budget");
+    const pct = data.total_limit > 0 ? Math.min(100, Math.round(data.total_spent / data.total_limit * 100)) : 0;
+    el.innerHTML = `<h3>Monat ${data.month}</h3>
+      <div style="display:flex;justify-content:space-between;align-items:baseline">
+        <div style="font-size:30px;font-weight:700">${data.total_spent.toFixed(2)}€</div>
+        <div style="color:var(--text-tertiary);font-size:13px">von ${data.total_limit.toFixed(2)}€</div>
+      </div>
+      <div class="progress-bar big ${data.over ? "over" : ""}"><div style="width:${pct}%"></div></div>
+      <div class="progress-text">${data.over ? "⚠️ Über Budget" : `${data.remaining.toFixed(2)}€ übrig`}</div>
+      <h4 style="margin:14px 0 8px">Kategorien</h4>
+      <div>${Object.entries(data.categories).length ? Object.entries(data.categories).map(([name, c]) => {
+        const p = c.limit > 0 ? Math.min(100, Math.round(c.spent / c.limit * 100)) : 0;
+        return `<div style="display:flex;justify-content:space-between;font-size:13px;margin:4px 0"><span>${escapeHtml(name)}</span><span style="color:var(--text-tertiary)">${c.spent.toFixed(0)}€${c.limit > 0 ? " / " + c.limit.toFixed(0) + "€" : ""}</span></div>`;
+      }).join("") : "<p class='empty-state'>Keine Kategorien.</p>"}</div>`;
+  } catch (e) { el.innerHTML = "<p class='empty-state'>Budget nicht verfügbar.</p>"; }
+}
+
+// --- Timer App (Großes Display) ---
+async function renderTimerApp(container) {
+  container.innerHTML = appPageHeader("⏱️ Timer") + `<div class="card" id="timerapp-body">${skeletonCard()}</div>`;
+  $("#back-home")?.addEventListener("click", () => navigate("home"));
+  await loadTimerApp();
+  initPullToRefresh(() => loadTimerApp());
+}
+
+async function loadTimerApp() {
+  const body = $("#timerapp-body");
+  if (!body) return;
+  try {
+    const data = await getJSON("/api/timetrack");
+    const t = data;
+    const secs = t.running ? t.current_seconds : t.elapsed_seconds;
+    body.innerHTML = `<div class="timer-display ${t.running ? "running" : ""}" id="timerapp-display" style="font-size:64px;text-align:center;padding:20px 0">${fmtDuration(secs)}</div>
+      <div class="timer-meta" style="text-align:center;font-size:16px">${t.project ? `${escapeHtml(t.project)}${t.task_title ? " · " + escapeHtml(t.task_title) : ""}` : "Kein Timer aktiv"}</div>
+      <div style="display:flex;gap:6px;margin-top:16px;justify-content:center">
+        <button class="btn-primary timerapp-toggle" style="font-size:18px;padding:14px 28px">${t.running ? "■ Stopp" : "▶ Start"}</button>
+      </div>
+      <h4 style="margin:16px 0 8px">Heutige Sessions</h4>
+      <div class="task-list">${(t.sessions || []).filter(s => s.date === new Date().toISOString().slice(0, 10)).length ? t.sessions.filter(s => s.date === new Date().toISOString().slice(0, 10)).map(s => `<div class="task-item"><span>${s.project || "—"}</span><span style="margin-left:auto;color:var(--text-secondary)">${fmtDuration(s.duration)}</span></div>`).join("") : "<p class='empty-state'>Noch keine Sessions heute.</p>"}</div>`;
+    body.querySelector(".timerapp-toggle").addEventListener("click", async () => {
+      if (t.running) {
+        const res = await postJSON("/api/timetrack/stop", {});
+        if (res.ok) flash("⏱ Timer gestoppt");
+      } else {
+        const name = promptWithFallback("Was arbeitest du gerade?", t.project || "");
+        if (name === null) return;
+        const res = await postJSON("/api/timetrack/start", { project: name, task: "" });
+        if (res.ok) flash(`⏱ Timer gestartet: ${name}`);
+      }
+      loadTimerApp();
+    });
+  } catch (e) { body.innerHTML = "<p class='empty-state'>Timer nicht verfügbar.</p>"; }
+}
+
+// --- Water App (Wasser + Schlaf) ---
+async function renderWaterApp(container) {
+  container.innerHTML = appPageHeader("💧 Gesundheit") + `<div class="grid grid-2"><div class="card" id="waterapp-water">${skeletonCard()}</div><div class="card" id="waterapp-sleep">${skeletonCard()}</div></div>`;
+  $("#back-home")?.addEventListener("click", () => navigate("home"));
+  await loadWaterApp();
+  initPullToRefresh(() => loadWaterApp());
+}
+
+async function loadWaterApp() {
+  const wEl = $("#waterapp-water"), sEl = $("#waterapp-sleep");
+  if (!wEl) return;
+  try {
+    const data = await getJSON("/api/health");
+    const pct = Math.min(100, Math.round(data.water / data.goal * 100));
+    wEl.innerHTML = `<h3>💧 Wasser</h3>
+      <div class="water-display ${data.done ? "done" : ""}" style="font-size:36px;text-align:center">${data.water.toFixed(2)}L <span class="water-goal">/ ${data.goal.toFixed(2)}L</span></div>
+      <div class="progress-bar water ${data.done ? "done" : ""}"><div style="width:${pct}%"></div></div>
+      <div class="progress-text">${data.done ? "🎉 Ziel erreicht! 🎉" : `${data.remaining.toFixed(2)}L noch`}</div>
+      <div style="display:flex;gap:6px;margin-top:10px">
+        <button class="btn-secondary waterapp-add" data-a="0.25" style="flex:1">+0.25L</button>
+        <button class="btn-secondary waterapp-add" data-a="0.5" style="flex:1">+0.5L</button>
+        <button class="btn-secondary waterapp-goal" style="flex:1">Ziel</button>
+      </div>`;
+    wEl.querySelectorAll(".waterapp-add").forEach(b => b.addEventListener("click", async () => {
+      const res = await postJSON("/api/health/water", { amount: parseFloat(b.dataset.a) });
+      if (res.ok) { flash("💧 +" + b.dataset.a + "L"); loadWaterApp(); }
+    }));
+    wEl.querySelector(".waterapp-goal").addEventListener("click", async () => {
+      const v = promptWithFallback("Tagesziel (Liter):", data.goal);
+      if (v === null) return;
+      const res = await patchJSON("/api/health/goal", { goal: parseFloat(v) || 2 });
+      flash(res.ok ? "Ziel gesetzt" : (res.error || "Fehler"), res.ok ? "ok" : "error");
+      if (res.ok) loadWaterApp();
+    });
+    if (sEl) {
+      const sw = Object.entries(data.week_sleep);
+      const sleepMax = Math.max(...sw.map(([, v]) => v), 8, 0.1);
+      sEl.innerHTML = `<h3>😴 Schlaf</h3>
+        <div class="bar-chart sleep" style="height:90px">${sw.map(([d, v]) => `<div class="bar-col"><div class="bar ${v > 0 ? "has" : ""}" style="height:${Math.max(3, Math.round(v / sleepMax * 70))}px"></div><div class="bar-label">${d.slice(8)}</div><div class="bar-value">${v > 0 ? v.toFixed(1) : "-"}</div></div>`).join("")}</div>
+        <form id="waterapp-sleep-form" style="display:flex;gap:6px;margin-top:12px">
+          <input type="date" id="waterapp-sleep-date" style="flex:1;min-width:0;padding:8px;border-radius:10px;border:none;background:var(--surface-2);color:var(--text);font-size:13px">
+          <input type="number" id="waterapp-sleep-hours" placeholder="h" step="0.5" min="0" max="24" style="width:60px;padding:8px;border-radius:10px;border:none;background:var(--surface-2);color:var(--text);font-size:13px">
+          <button type="submit" class="btn-primary">+</button>
+        </form>`;
+      const dateInput = sEl.querySelector("#waterapp-sleep-date");
+      const yest = new Date(); yest.setDate(yest.getDate() - 1);
+      dateInput.value = yest.toISOString().slice(0, 10);
+      sEl.querySelector("#waterapp-sleep-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const res = await postJSON("/api/health/sleep", { hours: parseFloat(sEl.querySelector("#waterapp-sleep-hours").value) || 0, date: dateInput.value });
+        flash(res.ok ? "Schlaf eingetragen" : (res.error || "Fehler"), res.ok ? "ok" : "error");
+        if (res.ok) loadWaterApp();
+      });
+    }
+  } catch (e) { if (wEl) wEl.innerHTML = "<p class='empty-state'>Health nicht verfügbar.</p>"; }
+}
+
+// --- Calendar App (Wochen-Ansicht + Terminliste + Event-Formular) ---
+async function renderCalendarApp(container) {
+  container.innerHTML = appPageHeader("📅 Kalender") + `
+    <div class="card" id="calapp-week">${skeletonList(7)}</div>
+    <div class="card" style="margin-top:10px"><h3>📋 Heutige Termine</h3><div id="calapp-today">${skeletonList(3)}</div></div>
+    <div class="card" style="margin-top:10px">
+      <h3>➕ Neuer Termin</h3>
+      <form id="calapp-form" style="display:grid;gap:8px">
+        <input type="text" id="calapp-title" placeholder="Titel" required>
+        <div style="display:flex;gap:6px"><input type="date" id="calapp-date"><input type="time" id="calapp-time"></div>
+        <input type="text" id="calapp-location" placeholder="Ort (optional)">
+        <button type="submit" class="btn-primary">Termin anlegen</button>
+      </form>
+    </div>`;
+  $("#back-home")?.addEventListener("click", () => navigate("home"));
+  const today = new Date().toISOString().slice(0, 10);
+  container.querySelector("#calapp-date").value = today;
+  container.querySelector("#calapp-time").value = "12:00";
+  container.querySelector("#calapp-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const title = container.querySelector("#calapp-title").value.trim();
+    const date = container.querySelector("#calapp-date").value;
+    const time = container.querySelector("#calapp-time").value;
+    const location = container.querySelector("#calapp-location").value.trim();
+    if (!title || !date || !time) return flash("Titel, Datum & Zeit erforderlich", "error");
+    const res = await postJSON("/api/calendar", { title, start: `${date}T${time}:00`, duration: 60, location });
+    flash(res.ok ? "Termin erstellt" : (res.error || "Fehler"), res.ok ? "ok" : "error");
+    if (res.ok) { container.querySelector("#calapp-title").value = ""; container.querySelector("#calapp-location").value = ""; loadCalendarAppData(); }
+  });
+  await loadCalendarAppData();
+  initPullToRefresh(() => loadCalendarAppData());
+}
+
+async function loadCalendarAppData() {
+  try {
+    const [week, cal] = await Promise.all([getJSON("/api/calendar/week?offset=0"), getJSON("/api/calendar")]);
+    const weekEl = $("#calapp-week");
+    if (weekEl) {
+      const today = new Date().toISOString().slice(0, 10);
+      const events = week.events || [];
+      const eventDates = new Set(events.map(e => e.start ? new Date(e.start).toISOString().slice(0, 10) : "").filter(Boolean));
+      const names = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+      weekEl.innerHTML = `<h3>🗓️ ${$("#week-title")?.textContent || "Diese Woche"}</h3><div class="week-view">${(week.days || []).map((d, i) => {
+        const isToday = d.date === today;
+        const hasEvents = eventDates.has(d.date);
+        const dt = new Date(d.date);
+        return `<div class="week-day ${isToday ? 'today' : ''}">
+          <div class="day-name">${names[i]}</div>
+          <div class="day-num">${dt.getDate()}</div>
+          ${hasEvents ? '<div class="dot"></div>' : '<div style="height:5px"></div>'}
+        </div>`;
+      }).join("")}</div>`;
+    }
+    const todayEl = $("#calapp-today");
+    if (todayEl) {
+      const evs = cal.today || [];
+      todayEl.innerHTML = evs.length ? evs.map(e => eventRow(e, true)).join("") : "<p class='empty-state'>Keine Termine heute.</p>";
+    }
+  } catch (e) {}
+}
+
+// --- Server Stats Page ---
+async function renderServerPage(container) {
+  container.innerHTML = appPageHeader("🖥️ Server") + `<div class="card" id="server-body">${skeletonList(3)}</div>`;
+  $("#back-home")?.addEventListener("click", () => navigate("home"));
+  await loadServerPage();
+  initPullToRefresh(() => loadServerPage());
+}
+
+async function loadServerPage() {
+  const el = $("#server-body");
+  if (!el) return;
+  try {
+    const data = await getJSON("/api/server");
+    el.innerHTML = `
+      <div class="server-stat"><h3>🧠 CPU</h3><div class="stat-bar"><div style="width:${data.cpu_pct}%;background:linear-gradient(90deg,var(--accent),var(--accent-2))"></div></div><div class="stat-val">${data.cpu_pct}%</div></div>
+      <div class="server-stat"><h3>💾 RAM</h3><div class="stat-bar"><div style="width:${data.ram_pct}%;background:linear-gradient(90deg,#0ea5e9,#22d3ee)"></div></div><div class="stat-val">${data.ram_used} / ${data.ram_total} GB (${data.ram_pct}%)</div></div>
+      <div class="server-stat"><h3>💿 Disk</h3><div class="stat-bar"><div style="width:${data.disk_pct}%;background:linear-gradient(90deg,#22c55e,#4ade80)"></div></div><div class="stat-val">${data.disk_used} / ${data.disk_total} GB (${data.disk_pct}%)</div></div>`;
+  } catch (e) { el.innerHTML = "<p class='empty-state'>Server-Stats nicht verfügbar.</p>"; }
+}
+
+// --- Embed Page (iFrame) ---
+function renderEmbedPage(container) {
+  const savedUrl = localStorage.getItem("hub_embed_url") || "";
+  container.innerHTML = appPageHeader("🌐 Embed") + `
+    <div class="card" style="margin-bottom:12px">
+      <form id="embed-form" style="display:flex;gap:6px">
+        <input type="url" id="embed-url" value="${escapeHtml(savedUrl)}" placeholder="https://..." style="flex:1;min-width:0;padding:10px;border-radius:10px;border:none;background:var(--surface-2);color:var(--text);font-size:14px" required>
+        <button type="submit" class="btn-primary">Laden</button>
+      </form>
+    </div>
+    <div id="embed-frame-wrap" style="${savedUrl ? '' : 'display:none'}">
+      <iframe id="embed-frame" src="${escapeHtml(savedUrl)}" style="width:100%;height:calc(100vh - 280px);border:none;border-radius:var(--radius);background:var(--bg)" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>
+    </div>
+    ${savedUrl ? '' : '<p class="empty-state">URL eingeben und laden</p>'}`;
+  $("#back-home")?.addEventListener("click", () => navigate("home"));
+  $("#embed-form")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const url = $("#embed-url").value.trim();
+    if (!url) return;
+    localStorage.setItem("hub_embed_url", url);
+    renderEmbedPage(container);
+  });
+}
+
 document.addEventListener("DOMContentLoaded", init);
 
-// ===== PWA Install-Banner =====
+// ===== PWA Install-Banner ======
 let deferredPrompt = null;
 
 function initInstallBanner() {
