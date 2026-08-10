@@ -17,6 +17,7 @@ from app import chats as chats_module
 from app import push as push_module
 from app import lydia
 from app import server as server_module
+from app import wiki
 
 PROJECTS_DATA = []
 
@@ -669,6 +670,66 @@ def api_create_recipe():
 @require_login
 def api_delete_recipe(recipe_id):
     return jsonify(lydia.delete_recipe(recipe_id))
+
+
+# --- Wiki / Knowledge Base ---
+
+@app.route("/api/wiki")
+@require_login
+def api_wiki():
+    q = request.args.get("q", "")
+    category = request.args.get("category", "")
+    tag = request.args.get("tag", "")
+    entry_type = request.args.get("type", "")
+    return jsonify(wiki.list_entries(q=q, category=category, tag=tag, entry_type=entry_type))
+
+
+@app.route("/api/wiki", methods=["POST"])
+@require_login
+def api_wiki_create():
+    data = request.get_json(silent=True) or {}
+    title = data.get("title", "").strip()
+    if not title:
+        return jsonify({"ok": False, "error": "Titel fehlt"}), 400
+    return jsonify(wiki.create_entry(
+        title, data.get("content", ""),
+        data.get("category", "Allgemein"),
+        data.get("tags", []),
+        data.get("type", "note"),
+        data.get("difficulty", ""),
+    ))
+
+
+@app.route("/api/wiki/<entry_id>", methods=["PATCH"])
+@require_login
+def api_wiki_update(entry_id):
+    data = request.get_json(silent=True) or {}
+    return jsonify(wiki.update_entry(entry_id, **data))
+
+
+@app.route("/api/wiki/<entry_id>", methods=["DELETE"])
+@require_login
+def api_wiki_delete(entry_id):
+    return jsonify(wiki.delete_entry(entry_id))
+
+
+@app.route("/api/wiki/categories")
+@require_login
+def api_wiki_categories():
+    return jsonify(wiki.get_categories())
+
+
+@app.route("/api/wiki/tags")
+@require_login
+def api_wiki_tags():
+    return jsonify(wiki.get_tags())
+
+
+@app.route("/api/wiki/import", methods=["POST"])
+@require_login
+def api_wiki_import():
+    data = request.get_json(silent=True) or []
+    return jsonify(wiki.import_entries(data))
 
 
 # --- Server Stats ---

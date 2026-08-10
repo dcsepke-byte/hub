@@ -80,6 +80,7 @@ const PAGES = {
   chat: renderChat,
   chatthread: renderChatThread,
   lydia: renderLydia,
+  wiki: renderWiki,
   customize: renderCustomize,
   newsapp: renderNewsApp,
   weatherapp: renderWeatherApp,
@@ -447,6 +448,7 @@ function bindAppClicks() {
       else if (id === "settings") navigate("settings");
       else if (id === "customize") navigate("customize");
       else if (id === "notizen") navigate("notes");
+      else if (id === "wiki") navigate("wiki");
       else if (id === "budget") navigate("budget");
       else if (id === "health") navigate("health");
       else if (id === "lydia") navigate("lydia");
@@ -635,6 +637,7 @@ async function renderHome(container) {
       ${appIcon("piano-coach", "Klavier")}
       ${appIcon("bangkok", "Bangkok")}
       ${appIcon("notizen", "Notizen")}
+      ${appIcon("wiki", "Wiki", "📚")}
       ${appIcon("projects", "Projekte")}
       ${appIcon("todo", "To-Do")}
       ${appIcon("budget", "Budget")}
@@ -1447,6 +1450,42 @@ async function openTextEditor(path, name) {
 
 function escapeHtml(text) { return (text || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;"); }
 
+function renderMarkdown(text) {
+  if (!text) return "";
+  let html = escapeHtml(text);
+  // Code blocks (``` ... ```)
+  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
+    return `<pre><code class="${lang}">${code.trim()}</code></pre>`;
+  });
+  // Inline code (`code`)
+  html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
+  // Headers
+  html = html.replace(/^### (.+)$/gm, "<h3>$1</h3>");
+  html = html.replace(/^## (.+)$/gm, "<h2>$1</h2>");
+  html = html.replace(/^# (.+)$/gm, "<h1>$1</h1>");
+  // Bold and italic
+  html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  html = html.replace(/\*(.+?)\*/g, "<em>$1</em>");
+  // Links
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  // Blockquotes
+  html = html.replace(/^> (.+)$/gm, "<blockquote>$1</blockquote>");
+  // Unordered lists
+  html = html.replace(/^- (.+)$/gm, "<li>$1</li>");
+  html = html.replace(/(<li>.*<\/li>\n?)+/g, "<ul>$&</ul>");
+  // Horizontal rules
+  html = html.replace(/^---$/gm, "<hr>");
+  // Line breaks
+  html = html.replace(/\n\n/g, "</p><p>");
+  html = html.replace(/\n/g, "<br>");
+  // Wrap in paragraphs
+  html = "<p>" + html + "</p>";
+  // Clean empty paragraphs
+  html = html.replace(/<p><\/p>/g, "");
+  html = html.replace(/<p>(\s*<br>\s*)*<\/p>/g, "");
+  return html;
+}
+
 function iconForFile(name) {
   const ext = name.split(".").pop().toLowerCase();
   const map = { pdf: "📄", jpg: "🖼️", jpeg: "🖼️", png: "🖼️", gif: "🖼️", webp: "🖼️", md: "📝", txt: "📝", py: "🐍", js: "📜", html: "🌐", css: "🎨", mp3: "🎵", mp4: "🎬" };
@@ -1681,6 +1720,215 @@ function openNoteEditor(note) {
   });
   document.body.appendChild(modal);
   modal.querySelector("#note-title").focus();
+}
+
+// --- Wiki / Knowledge Base ---
+
+async function renderWiki(container) {
+  container.innerHTML = `
+    <div class="back-home"><button class="btn-secondary" id="back-home">← Home</button></div>
+    <h2 class="page-title">📚 Wissensdatenbank</h2>
+    <div class="wiki-toolbar">
+      <input type="text" id="wiki-search" placeholder="Artikel durchsuchen..." autocomplete="off">
+      <select id="wiki-cat-filter"><option value="">Alle Kategorien</option></select>
+      <select id="wiki-type-filter">
+        <option value="">Alle Typen</option>
+        <option value="tutorial">Tutorials</option>
+        <option value="note">Notizen</option>
+        <option value="reference">Referenzen</option>
+      </select>
+      <button class="btn-primary" id="wiki-new">+ Neu</button>
+    </div>
+    <div class="wiki-layout">
+      <div class="wiki-sidebar" id="wiki-cat-tree">
+        <div class="wiki-sidebar-title">Kategorien</div>
+        <div id="wiki-cat-list">Lade...</div>
+      </div>
+      <div class="wiki-main">
+        <div class="task-list" id="wiki-list">${skeletonList(6)}</div>
+      </div>
+    </div>`;
+  $("#back-home").addEventListener("click", () => navigate("home"));
+  $("#wiki-new").addEventListener("click", () => openWikiEditor(null));
+  
+  // Filter-Handler
+  let debounce;
+  $("#wiki-search").addEventListener("input", () => {
+    clearTimeout(debounce);
+    debounce = setTimeout(() => loadWiki(), 250);
+  });
+  $("#wiki-cat-filter").addEventListener("change", () => loadWiki());
+  $("#wiki-type-filter").addEventListener("change", () => loadWiki());
+  
+  await loadWikiCategories();
+  await loadWiki();
+  initPullToRefresh(() => loadWiki());
+}
+
+async function loadWikiCategories() {
+  const sel = $("#wiki-cat-filter");
+  const catList = $("#wiki-cat-list");
+  if (!sel || !catList) return;
+  try {
+    const cats = await getJSON("/api/wiki/categories");
+    sel.innerHTML = '<option value="">Alle Kategorien</option>' + cats.map(c => `<option>${escapeHtml(c)}</option>`).join("");
+    catList.innerHTML = cats.map(c => `<div class="wiki-cat-item" data-cat="${escapeHtml(c)}">📁 ${escapeHtml(c)}</div>`).join("")
+      || "<div class='empty-state'>Keine Kategorien</div>";
+    catList.querySelectorAll(".wiki-cat-item").forEach(el => {
+      el.addEventListener("click", () => {
+        $("#wiki-cat-filter").value = el.dataset.cat;
+        loadWiki();
+      });
+    });
+  } catch (e) {
+    catList.innerHTML = "<div class='empty-state'>Fehler</div>";
+  }
+}
+
+async function loadWiki() {
+  const list = $("#wiki-list");
+  if (!list) return;
+  const q = $("#wiki-search")?.value.trim() || "";
+  const cat = $("#wiki-cat-filter")?.value || "";
+  const tp = $("#wiki-type-filter")?.value || "";
+  try {
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    if (cat) params.set("category", cat);
+    if (tp) params.set("type", tp);
+    const entries = await getJSON("/api/wiki?" + params.toString());
+    appState.wikiEntries = entries;
+    list.innerHTML = entries.length ? entries.map(wikiCard).join("") : "<p class='empty-state'>Keine Artikel gefunden. 📭</p>";
+    list.querySelectorAll(".wiki-card").forEach(card => {
+      const entry = () => appState.wikiEntries.find(e => e.id === card.dataset.id);
+      card.addEventListener("click", () => {
+        const e = entry();
+        if (e) showWikiDetail(e);
+      });
+      card.querySelector(".wiki-card-del")?.addEventListener("click", async (ev) => {
+        ev.stopPropagation();
+        const e = entry();
+        if (!e) return;
+        const ok = await confirmSheet(`Artikel „${e.title}" löschen?`);
+        if (!ok) return;
+        const res = await deleteReq(`/api/wiki/${e.id}`);
+        flash(res.ok ? "Artikel gelöscht" : "Fehler", res.ok ? "ok" : "error");
+        loadWiki();
+      });
+    });
+  } catch (e) {
+    list.innerHTML = "<p class='empty-state'>Fehler beim Laden.</p>";
+  }
+}
+
+function wikiCard(e) {
+  const diffBadge = e.difficulty
+    ? `<span class="wiki-difficulty wiki-diff-${e.difficulty}">${e.difficulty === "beginner" ? "🟢" : e.difficulty === "intermediate" ? "🟡" : "🔴"} ${e.difficulty}</span>`
+    : "";
+  const typeIcon = e.type === "tutorial" ? "📖" : e.type === "reference" ? "📋" : "📝";
+  const tags = (e.tags || []).slice(0, 4).map(t => `<span class="wiki-tag">${escapeHtml(t)}</span>`).join("");
+  const date = new Date(e.updated_at).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit" });
+  const preview = (e.content || "").replace(/\n/g, " ").slice(0, 120);
+  return `<div class="wiki-card ${e.type || "note"}" data-id="${e.id}">
+    <div class="wiki-card-head">
+      <span class="wiki-card-type">${typeIcon} ${e.type}</span>
+      <span class="wiki-category-badge">${escapeHtml(e.category || "Allgemein")}</span>
+      ${diffBadge}
+      <button class="wiki-card-del" title="Löschen">🗑</button>
+    </div>
+    <div class="wiki-card-title">${escapeHtml(e.title)}</div>
+    ${preview ? `<div class="wiki-card-preview">${escapeHtml(preview)}</div>` : ""}
+    <div class="wiki-card-foot">
+      <div class="wiki-card-tags">${tags}</div>
+      <span class="wiki-card-date">${date}</span>
+    </div>
+  </div>`;
+}
+
+function showWikiDetail(entry) {
+  const modal = document.createElement("div");
+  modal.className = "modal show";
+  modal.innerHTML = `<div class="modal-card wide wiki-detail">
+    <div class="modal-header">
+      <h3>${escapeHtml(entry.title)}</h3>
+      <div>
+        <button class="wiki-edit-btn" title="Bearbeiten">✏️</button>
+        <button class="close-modal">×</button>
+      </div>
+    </div>
+    <div class="modal-body wiki-detail-body">
+      <div class="wiki-detail-meta">
+        <span class="wiki-category-badge">📁 ${escapeHtml(entry.category || "Allgemein")}</span>
+        ${entry.difficulty ? `<span class="wiki-difficulty wiki-diff-${entry.difficulty}">${entry.difficulty === "beginner" ? "🟢" : entry.difficulty === "intermediate" ? "🟡" : "🔴"} ${entry.difficulty}</span>` : ""}
+        <span>Typ: ${entry.type}</span>
+      </div>
+      <div class="wiki-detail-tags">${(entry.tags || []).map(t => `<span class="wiki-tag">${escapeHtml(t)}</span>`).join(" ")}</div>
+      <div class="wiki-detail-content">${renderMarkdown(entry.content)}</div>
+    </div>
+  </div>`;
+  modal.addEventListener("click", (e) => { if (e.target === modal) modal.remove(); });
+  modal.querySelector(".close-modal").addEventListener("click", () => modal.remove());
+  modal.querySelector(".wiki-edit-btn").addEventListener("click", () => {
+    modal.remove();
+    openWikiEditor(entry);
+  });
+  document.body.appendChild(modal);
+}
+
+function openWikiEditor(entry) {
+  const categories = ["Godot", "Game Design", "Web Dev", "Allgemein", "Python", "KI", "Server"];
+  const types = ["note", "tutorial", "reference"];
+  const difficulties = ["beginner", "intermediate", "advanced"];
+  
+  const modal = document.createElement("div");
+  modal.className = "modal show";
+  modal.innerHTML = `<div class="modal-card wide">
+    <div class="modal-header"><h3>${entry ? "✏️ Artikel bearbeiten" : "📚 Neuer Artikel"}</h3><button class="close-modal">×</button></div>
+    <div class="modal-body">
+      <input type="text" id="wiki-edit-title" placeholder="Titel" value="${escapeHtml(entry?.title || '')}" maxlength="200">
+      <div class="wiki-edit-row">
+        <select id="wiki-edit-category">
+          <option value="">Kategorie wählen...</option>
+          ${categories.map(c => `<option ${entry && entry.category === c ? "selected" : ""}>${c}</option>`).join("")}
+        </select>
+        <select id="wiki-edit-type">
+          ${types.map(t => `<option value="${t}" ${entry && entry.type === t ? "selected" : ""}>${t === "tutorial" ? "📖 Tutorial" : t === "reference" ? "📋 Reference" : "📝 Note"}</option>`).join("")}
+        </select>
+      </div>
+      <div class="wiki-edit-row">
+        <input type="text" id="wiki-edit-tags" placeholder="Tags (kommagetrennt)" value="${escapeHtml((entry?.tags || []).join(", "))}">
+        <select id="wiki-edit-difficulty">
+          <option value="">Schwierigkeit (optional)</option>
+          ${difficulties.map(d => `<option value="${d}" ${entry && entry.difficulty === d ? "selected" : ""}>${d === "beginner" ? "🟢 Einfach" : d === "intermediate" ? "🟡 Mittel" : "🔴 Schwer"}</option>`).join("")}
+        </select>
+      </div>
+      <textarea id="wiki-edit-content" rows="16" placeholder="Inhalt (Markdown)...">${escapeHtml(entry?.content || '')}</textarea>
+      <button id="wiki-save" class="btn-primary" style="width:100%">💾 Speichern</button>
+    </div></div>`;
+  modal.addEventListener("click", (e) => { if (e.target === modal) modal.remove(); });
+  modal.querySelector(".close-modal").addEventListener("click", () => modal.remove());
+  modal.querySelector("#wiki-save").addEventListener("click", async () => {
+    const title = modal.querySelector("#wiki-edit-title").value.trim();
+    if (!title) return flash("Titel fehlt", "error");
+    const category = modal.querySelector("#wiki-edit-category").value;
+    const tagsRaw = modal.querySelector("#wiki-edit-tags").value;
+    const tags = tagsRaw.split(",").map(t => t.trim()).filter(Boolean);
+    const body = {
+      title,
+      category: category || "Allgemein",
+      tags,
+      type: modal.querySelector("#wiki-edit-type").value,
+      difficulty: modal.querySelector("#wiki-edit-difficulty").value,
+      content: modal.querySelector("#wiki-edit-content").value,
+    };
+    const res = entry
+      ? await patchJSON(`/api/wiki/${entry.id}`, body)
+      : await postJSON("/api/wiki", body);
+    flash(res.ok ? "Gespeichert" : (res.error || "Fehler"), res.ok ? "ok" : "error");
+    if (res.ok) { modal.remove(); loadWiki(); }
+  });
+  document.body.appendChild(modal);
+  modal.querySelector("#wiki-edit-title").focus();
 }
 
 // --- Monatsbudget ---
