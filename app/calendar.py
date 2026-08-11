@@ -72,8 +72,15 @@ def week_events(reference: datetime = None) -> List[Dict]:
     return sorted(matches, key=lambda x: x.get("start", ""))
 
 
-def add_event(title: str, start: str, duration_minutes: int = 60, project: str = "", location: str = "") -> Dict:
+def add_event(title: str, start: str, duration_minutes: int = 60, project: str = "", location: str = "", notes: str = "", color: str = "") -> Dict:
     events = load_events()
+    # Assign color based on project hash if not provided
+    if not color and project:
+        colors = ["#7c3aed", "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#ec4899"]
+        h = sum(ord(c) for c in project) % len(colors)
+        color = colors[h]
+    elif not color:
+        color = "#6b7280"  # gray for no-project
     events.append({
         "id": len(events) + 1,
         "title": title,
@@ -81,7 +88,60 @@ def add_event(title: str, start: str, duration_minutes: int = 60, project: str =
         "duration": duration_minutes,
         "project": project,
         "location": location.strip(),
+        "notes": notes.strip(),
+        "color": color,
         "created": datetime.now().isoformat(),
     })
     save_events(events)
+    return {"ok": True}
+
+
+def month_events(year: int, month: int) -> List[Dict]:
+    """Return all events for a given month."""
+    events = load_events()
+    prefix = f"{year:04d}-{month:02d}"
+    matches = []
+    for e in events:
+        start = e.get("start", "")
+        if start and start.startswith(prefix):
+            matches.append(e)
+    return sorted(matches, key=lambda x: x.get("start", ""))
+
+
+def update_event(event_id: int, title: str = None, start: str = None, duration_minutes: int = None, project: str = None, location: str = None, notes: str = None, color: str = None) -> Dict:
+    events = load_events()
+    for e in events:
+        if e.get("id") == event_id:
+            if title is not None:
+                e["title"] = title
+            if start is not None:
+                e["start"] = start
+            if duration_minutes is not None:
+                e["duration"] = duration_minutes
+            if project is not None:
+                e["project"] = project
+                if color is None and project:
+                    colors = ["#7c3aed", "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#ec4899"]
+                    h = sum(ord(c) for c in project) % len(colors)
+                    e["color"] = colors[h]
+                elif color is None:
+                    e["color"] = "#6b7280"
+            if location is not None:
+                e["location"] = location.strip()
+            if notes is not None:
+                e["notes"] = notes.strip()
+            if color is not None:
+                e["color"] = color
+            e["updated"] = datetime.now().isoformat()
+            save_events(events)
+            return {"ok": True}
+    return {"ok": False, "error": "Event not found"}
+
+
+def delete_event(event_id: int) -> Dict:
+    events = load_events()
+    new_events = [e for e in events if e.get("id") != event_id]
+    if len(new_events) == len(events):
+        return {"ok": False, "error": "Event not found"}
+    save_events(new_events)
     return {"ok": True}

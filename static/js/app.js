@@ -2907,64 +2907,295 @@ async function loadWaterApp() {
 }
 
 // --- Calendar App (Wochen-Ansicht + Terminliste + Event-Formular) ---
+// --- Calendar App (Monatsansicht mit Farb-Coding, Swipe, Click-to-Event) ---
+let _calYear, _calMonth, _calEvents, _calTouchStartX;
+
+function calMonthKey(y, m) { return `${y}-${String(m).padStart(2, "0")}`; }
+
 async function renderCalendarApp(container) {
-  container.innerHTML = appPageHeader("📅 Kalender") + `
-    <div class="card" id="calapp-week">${skeletonList(7)}</div>
-    <div class="card" style="margin-top:10px"><h3>📋 Heutige Termine</h3><div id="calapp-today">${skeletonList(3)}</div></div>
-    <div class="card" style="margin-top:10px">
-      <h3>➕ Neuer Termin</h3>
-      <form id="calapp-form" style="display:grid;gap:8px">
-        <input type="text" id="calapp-title" placeholder="Titel" required>
-        <div style="display:flex;gap:6px"><input type="date" id="calapp-date"><input type="time" id="calapp-time"></div>
-        <input type="text" id="calapp-location" placeholder="Ort (optional)">
-        <button type="submit" class="btn-primary">Termin anlegen</button>
-      </form>
+  const now = new Date();
+  _calYear = now.getFullYear();
+  _calMonth = now.getMonth() + 1;
+  container.innerHTML = `
+    <div class="cal-header">
+      <button class="cal-back-btn" id="back-home">← Zurück</button>
+      <div class="cal-nav">
+        <button id="cal-prev" class="cal-nav-btn" title="Vorheriger Monat">◀</button>
+        <span id="cal-month-title"></span>
+        <button id="cal-next" class="cal-nav-btn" title="Nächster Monat">▶</button>
+      </div>
+      <button id="cal-today-btn" class="btn-secondary" style="padding:6px 14px;font-size:13px">Heute</button>
+    </div>
+    <div class="cal-month" id="cal-month-grid"></div>
+    <div class="cal-agenda" id="cal-agenda"></div>
+    <div class="modal" id="cal-event-modal" style="display:none">
+      <div class="modal-card" style="max-width:420px">
+        <div class="modal-header"><h3 id="cal-modal-title">Neuer Termin</h3><button class="close-modal" id="cal-modal-close">×</button></div>
+        <div class="modal-body">
+          <form id="cal-event-form" style="display:grid;gap:10px">
+            <input type="text" id="cal-ev-title" placeholder="Titel" required>
+            <div style="display:flex;gap:8px">
+              <input type="date" id="cal-ev-date" required style="flex:1">
+              <input type="time" id="cal-ev-start" value="12:00" style="flex:1">
+              <input type="time" id="cal-ev-end" value="13:00" style="flex:1">
+            </div>
+            <select id="cal-ev-project" style="padding:10px;border-radius:10px;border:none;background:var(--surface-2);color:var(--text);font-size:14px">
+              <option value="">Kein Projekt</option>
+            </select>
+            <textarea id="cal-ev-notes" placeholder="Notizen (optional)" rows="2" style="padding:10px;border-radius:10px;border:none;background:var(--surface-2);color:var(--text);font-size:14px;resize:vertical;font-family:inherit"></textarea>
+            <input type="hidden" id="cal-ev-id" value="">
+            <div style="display:flex;gap:8px">
+              <button type="submit" class="btn-primary" style="flex:1">Speichern</button>
+              <button type="button" id="cal-ev-delete" class="btn-danger" style="display:none">Löschen</button>
+            </div>
+          </form>
+        </div>
+      </div>
     </div>`;
   $("#back-home")?.addEventListener("click", () => navigate("home"));
-  const today = new Date().toISOString().slice(0, 10);
-  container.querySelector("#calapp-date").value = today;
-  container.querySelector("#calapp-time").value = "12:00";
-  container.querySelector("#calapp-form").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const title = container.querySelector("#calapp-title").value.trim();
-    const date = container.querySelector("#calapp-date").value;
-    const time = container.querySelector("#calapp-time").value;
-    const location = container.querySelector("#calapp-location").value.trim();
-    if (!title || !date || !time) return flash("Titel, Datum & Zeit erforderlich", "error");
-    const res = await postJSON("/api/calendar", { title, start: `${date}T${time}:00`, duration: 60, location });
-    flash(res.ok ? "Termin erstellt" : (res.error || "Fehler"), res.ok ? "ok" : "error");
-    if (res.ok) { container.querySelector("#calapp-title").value = ""; container.querySelector("#calapp-location").value = ""; loadCalendarAppData(); }
+  // Nav buttons
+  $("#cal-prev").addEventListener("click", () => { _calMonth--; if (_calMonth < 1) { _calMonth = 12; _calYear--; } loadCalendarMonth(); });
+  $("#cal-next").addEventListener("click", () => { _calMonth++; if (_calMonth > 12) { _calMonth = 1; _calYear++; } loadCalendarMonth(); });
+  $("#cal-today-btn").addEventListener("click", () => { const n = new Date(); _calYear = n.getFullYear(); _calMonth = n.getMonth() + 1; loadCalendarMonth(); });
+  // Event form submit (bound here after DOM exists)
+  $("#cal-event-form").addEventListener("submit", calEventFormSubmit);
+  // Touch swipe
+  const grid = $("#cal-month-grid");
+  grid.addEventListener("touchstart", e => { _calTouchStartX = e.touches[0].clientX; }, { passive: true });
+  grid.addEventListener("touchend", e => {
+    if (_calTouchStartX === undefined) return;
+    const dx = e.changedTouches[0].clientX - _calTouchStartX;
+    if (Math.abs(dx) > 60) {
+      if (dx > 0) { _calMonth--; if (_calMonth < 1) { _calMonth = 12; _calYear--; } }
+      else { _calMonth++; if (_calMonth > 12) { _calMonth = 1; _calYear++; } }
+      loadCalendarMonth();
+    }
+    _calTouchStartX = undefined;
   });
-  await loadCalendarAppData();
-  initPullToRefresh(() => loadCalendarAppData());
+  // Modal close
+  $("#cal-modal-close").addEventListener("click", () => { $("#cal-event-modal").style.display = "none"; });
+  $("#cal-event-modal").addEventListener("click", e => { if (e.target === e.currentTarget) $("#cal-event-modal").style.display = "none"; });
+  // Load projects for dropdown
+  loadCalProjects();
+  await loadCalendarMonth();
+  initPullToRefresh(() => loadCalendarMonth());
 }
 
-async function loadCalendarAppData() {
+async function loadCalProjects() {
   try {
-    const [week, cal] = await Promise.all([getJSON("/api/calendar/week?offset=0"), getJSON("/api/calendar")]);
-    const weekEl = $("#calapp-week");
-    if (weekEl) {
-      const today = new Date().toISOString().slice(0, 10);
-      const events = week.events || [];
-      const eventDates = new Set(events.map(e => e.start ? new Date(e.start).toISOString().slice(0, 10) : "").filter(Boolean));
-      const names = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
-      weekEl.innerHTML = `<h3>🗓️ ${$("#week-title")?.textContent || "Diese Woche"}</h3><div class="week-view">${(week.days || []).map((d, i) => {
-        const isToday = d.date === today;
-        const hasEvents = eventDates.has(d.date);
-        const dt = new Date(d.date);
-        return `<div class="week-day ${isToday ? 'today' : ''}">
-          <div class="day-name">${names[i]}</div>
-          <div class="day-num">${dt.getDate()}</div>
-          ${hasEvents ? '<div class="dot"></div>' : '<div style="height:5px"></div>'}
-        </div>`;
-      }).join("")}</div>`;
-    }
-    const todayEl = $("#calapp-today");
-    if (todayEl) {
-      const evs = cal.today || [];
-      todayEl.innerHTML = evs.length ? evs.map(e => eventRow(e, true)).join("") : "<p class='empty-state'>Keine Termine heute.</p>";
-    }
+    const data = await getJSON("/api/projects");
+    const sel = $("#cal-ev-project");
+    if (!sel) return;
+    (data.projects || []).forEach(p => {
+      const opt = document.createElement("option");
+      opt.value = p.name;
+      opt.textContent = p.name;
+      sel.appendChild(opt);
+    });
   } catch (e) {}
+}
+
+function calEventFormSubmit(e) {
+  e.preventDefault();
+  const id = $("#cal-ev-id").value;
+  const title = $("#cal-ev-title").value.trim();
+  const date = $("#cal-ev-date").value;
+  const start = $("#cal-ev-start").value;
+  const end = $("#cal-ev-end").value;
+  const project = $("#cal-ev-project").value;
+  const notes = $("#cal-ev-notes").value.trim();
+  if (!title || !date || !start) return flash("Titel, Datum & Startzeit erforderlich", "error");
+  const startISO = `${date}T${start}:00`;
+  const dur = end ? Math.max(15, (parseInt(end.split(":")[0]) * 60 + parseInt(end.split(":")[1])) - (parseInt(start.split(":")[0]) * 60 + parseInt(start.split(":")[1]))) : 60;
+  (async () => {
+    const payload = { title, start: startISO, duration: dur, project, notes };
+    if (id) payload.id = parseInt(id);
+    const res = await postJSON("/api/calendar", payload);
+    if (res.ok) {
+      flash(id ? "Termin aktualisiert" : "Termin erstellt", "ok");
+      $("#cal-event-modal").style.display = "none";
+      loadCalendarMonth();
+    } else {
+      flash(res.error || "Fehler", "error");
+    }
+  })();
+}
+
+function openCalEventModal(dayStr) {
+  const modal = $("#cal-event-modal");
+  $("#cal-modal-title").textContent = "Neuer Termin";
+  $("#cal-ev-id").value = "";
+  $("#cal-ev-title").value = "";
+  $("#cal-ev-date").value = dayStr;
+  $("#cal-ev-start").value = "12:00";
+  $("#cal-ev-end").value = "13:00";
+  $("#cal-ev-project").value = "";
+  $("#cal-ev-notes").value = "";
+  $("#cal-ev-delete").style.display = "none";
+  modal.style.display = "flex";
+  $("#cal-ev-title").focus();
+}
+
+function editCalEvent(ev) {
+  const modal = $("#cal-event-modal");
+  $("#cal-modal-title").textContent = "Termin bearbeiten";
+  $("#cal-ev-id").value = ev.id || "";
+  $("#cal-ev-title").value = ev.title || "";
+  const startDate = ev.start ? ev.start.slice(0, 10) : "";
+  const startTime = ev.start ? ev.start.slice(11, 16) : "12:00";
+  $("#cal-ev-date").value = startDate;
+  $("#cal-ev-start").value = startTime;
+  const endTime = ev.start && ev.duration ? new Date(new Date(ev.start).getTime() + ev.duration * 60000).toTimeString().slice(0, 5) : "";
+  $("#cal-ev-end").value = endTime || "";
+  $("#cal-ev-project").value = ev.project || "";
+  $("#cal-ev-notes").value = ev.notes || "";
+  $("#cal-ev-delete").style.display = "inline-block";
+  modal.style.display = "flex";
+  // Delete handler (bind once)
+  const delBtn = $("#cal-ev-delete");
+  if (!delBtn.dataset.bound) {
+    delBtn.dataset.bound = "1";
+    delBtn.addEventListener("click", async () => {
+      if (!confirm("Termin wirklich löschen?")) return;
+      const eid = $("#cal-ev-id").value;
+      if (!eid) return;
+      try {
+        const res = await fetch(`/api/calendar/${eid}`, { method: "DELETE" });
+        const data = await res.json();
+        flash(data.ok ? "Termin gelöscht" : (data.error || "Fehler"), data.ok ? "ok" : "error");
+        if (data.ok) { $("#cal-event-modal").style.display = "none"; loadCalendarMonth(); }
+      } catch (x) { flash("Netzwerkfehler", "error"); }
+    });
+  }
+}
+
+async function loadCalendarMonth() {
+  const grid = $("#cal-month-grid");
+  const agenda = $("#cal-agenda");
+  const title = $("#cal-month-title");
+  if (!grid) return;
+  const key = calMonthKey(_calYear, _calMonth);
+  const monthNames = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
+  if (title) title.textContent = `${monthNames[_calMonth - 1]} ${_calYear}`;
+  grid.innerHTML = skeletonList(5);
+  agenda.innerHTML = "";
+  try {
+    const data = await getJSON(`/api/calendar?month=${key}`);
+    _calEvents = data.events || [];
+    renderCalGrid(grid, _calYear, _calMonth, _calEvents);
+  } catch (e) {
+    grid.innerHTML = "<p class='empty-state'>Kalender nicht verfügbar</p>";
+  }
+}
+
+function renderCalGrid(grid, year, month, events) {
+  const today = new Date().toISOString().slice(0, 10);
+  const dayNames = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+  const firstDay = new Date(year, month - 1, 1);
+  const lastDay = new Date(year, month, 0);
+  const daysInMonth = lastDay.getDate();
+  let startDow = firstDay.getDay() - 1;
+  if (startDow < 0) startDow = 6;
+  // Build day-event map
+  const evMap = {};
+  events.forEach(e => {
+    const d = e.start ? e.start.slice(0, 10) : "";
+    if (d) { if (!evMap[d]) evMap[d] = []; evMap[d].push(e); }
+  });
+  // Build weeks
+  const weeks = [];
+  let day = 1;
+  let currentWeek = Array(7).fill(null);
+  for (let col = 0; col < 7; col++) {
+    if (col < startDow) currentWeek[col] = { day: null, otherMonth: true };
+    else { currentWeek[col] = { day, date: `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}` }; day++; }
+  }
+  weeks.push(currentWeek);
+  while (day <= daysInMonth) {
+    currentWeek = Array(7).fill(null);
+    for (let col = 0; col < 7 && day <= daysInMonth; col++) {
+      currentWeek[col] = { day, date: `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}` };
+      day++;
+    }
+    while (currentWeek.length < 7) currentWeek.push(null);
+    weeks.push(currentWeek);
+  }
+  const lastW = weeks[weeks.length - 1];
+  for (let i = 0; i < 7; i++) {
+    if (!lastW[i]) lastW[i] = { day: null, otherMonth: true };
+  }
+  // Render
+  let html = `<div class="cal-day-names">${dayNames.map(n => `<div>${n}</div>`).join("")}</div>`;
+  weeks.forEach(week => {
+    html += '<div class="cal-week">';
+    week.forEach(d => {
+      if (!d || d.otherMonth) {
+        html += '<div class="cal-day other-month"></div>';
+      } else {
+        const isToday = d.date === today;
+        const dayEvs = evMap[d.date] || [];
+        const maxShow = 3;
+        const visible = dayEvs.slice(0, maxShow);
+        const more = dayEvs.length > maxShow ? dayEvs.length - maxShow : 0;
+        const evBars = visible.map(e => {
+          const timeLabel = e.start ? e.start.slice(11, 16) : "";
+          const c = e.color || "#6b7280";
+          return `<div class="cal-event" style="background:${c}" data-evid="${e.id}" title="${escapeHtml(e.title)}">${timeLabel ? `<span class="cal-ev-time">${timeLabel}</span>` : ""}${escapeHtml(e.title.length > 8 ? e.title.slice(0, 8) + "…" : e.title)}</div>`;
+        }).join("");
+        const moreHtml = more > 0 ? `<div class="cal-more">+${more} mehr</div>` : "";
+        html += `<div class="cal-day${isToday ? ' today' : ''}" data-date="${d.date}">
+          <div class="cal-day-num">${d.day}</div>
+          <div class="cal-day-events">${evBars}${moreHtml}</div>
+        </div>`;
+      }
+    });
+    html += '</div>';
+  });
+  grid.innerHTML = html;
+  // Bind day clicks -> new event modal
+  grid.querySelectorAll(".cal-day:not(.other-month)").forEach(cell => {
+    const date = cell.dataset.date;
+    cell.addEventListener("click", e => {
+      if (e.target.closest(".cal-event")) return;
+      openCalEventModal(date);
+    });
+  });
+  // Bind event clicks -> edit modal
+  grid.querySelectorAll(".cal-event").forEach(evEl => {
+    evEl.addEventListener("click", e => {
+      e.stopPropagation();
+      const evId = parseInt(evEl.dataset.evid);
+      const ev = _calEvents.find(x => x.id === evId);
+      if (ev) editCalEvent(ev);
+    });
+  });
+  // Show agenda for today
+  updateCalAgenda(today, evMap);
+}
+
+function updateCalAgenda(dateStr, evMap) {
+  const agenda = $("#cal-agenda");
+  if (!agenda) return;
+  const evs = evMap[dateStr] || [];
+  const d = new Date(dateStr);
+  const dayNames = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
+  const monthNames = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
+  const label = `${evs.length} ${evs.length === 1 ? "Termin" : "Termine"} am ${d.getDate()}. ${monthNames[d.getMonth()]}`;
+  agenda.innerHTML = `<h4>${label}</h4>`;
+  if (evs.length === 0) {
+    agenda.innerHTML += "<p class='empty-state'>Keine Termine an diesem Tag</p>";
+  } else {
+    agenda.innerHTML += evs.map(e => {
+      const time = e.start ? e.start.slice(11, 16) : "";
+      const c = e.color || "#6b7280";
+      return `<div class="cal-agenda-item" style="border-left:3px solid ${c}">
+        <div style="font-weight:600">${time} — ${escapeHtml(e.title)}</div>
+        ${e.project ? `<div style="font-size:12px;color:var(--text-secondary)">📁 ${escapeHtml(e.project)}</div>` : ""}
+        ${e.notes ? `<div style="font-size:12px;color:var(--text-tertiary)">${escapeHtml(e.notes)}</div>` : ""}
+        ${e.location ? `<div style="font-size:12px;color:var(--text-tertiary)">📍 ${escapeHtml(e.location)}</div>` : ""}
+      </div>`;
+    }).join("");
+  }
 }
 
 // --- Server Stats Page ---

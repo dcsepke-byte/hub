@@ -436,6 +436,13 @@ def api_calendar_week():
 @app.route("/api/calendar")
 @require_login
 def api_calendar():
+    month_param = request.args.get("month", "").strip()
+    if month_param:
+        try:
+            y, m = month_param.split("-")
+            return jsonify({"events": calendar.month_events(int(y), int(m)), "month": month_param})
+        except Exception:
+            return jsonify({"error": "Invalid month format (YYYY-MM)"}), 400
     return jsonify({
         "today": calendar.today_events(limit=5),
         "upcoming": calendar.upcoming_events(days=7, limit=10),
@@ -446,11 +453,42 @@ def api_calendar():
 @require_login
 def api_create_event():
     data = request.get_json(silent=True) or {}
+    event_id = data.get("id")
+    # Update existing event
+    if event_id:
+        try:
+            event_id = int(event_id)
+        except (ValueError, TypeError):
+            return jsonify({"ok": False, "error": "Invalid event id"}), 400
+        return jsonify(calendar.update_event(
+            event_id,
+            title=data.get("title", "").strip() or None,
+            start=data.get("start", "").strip() or None,
+            duration_minutes=data.get("duration"),
+            project=data.get("project", "").strip() or None,
+            location=data.get("location", "").strip() or None,
+            notes=data.get("notes", "").strip() or None,
+            color=data.get("color", "").strip() or None,
+        ))
+    # Create new event
     title = data.get("title", "").strip()
     start = data.get("start", "").strip()
     if not title or not start:
         return jsonify({"ok": False, "error": "Titel und Startzeit erforderlich"}), 400
-    return jsonify(calendar.add_event(title, start, data.get("duration", 60), data.get("project", ""), data.get("location", "")))
+    return jsonify(calendar.add_event(
+        title, start,
+        data.get("duration", 60),
+        data.get("project", ""),
+        data.get("location", ""),
+        data.get("notes", ""),
+        data.get("color", ""),
+    ))
+
+
+@app.route("/api/calendar/<int:event_id>", methods=["DELETE"])
+@require_login
+def api_delete_event(event_id):
+    return jsonify(calendar.delete_event(event_id))
 
 
 @app.route("/api/lists")
