@@ -2,10 +2,42 @@ import os
 import requests
 from typing import Optional
 
+# City name → lat/lon cache (simple in-memory)
+_geo_cache = {}
 
-def get_weather(lat: float = 52.27, lon: float = 10.53) -> dict:
+
+def geocode(city: str) -> Optional[dict]:
+    """Resolve city name to lat/lon via Open-Meteo Geocoding API."""
+    key = city.strip().lower()
+    if key in _geo_cache:
+        return _geo_cache[key]
+    try:
+        r = requests.get(
+            "https://geocoding-api.open-meteo.com/v1/search",
+            params={"name": city, "count": 1, "language": "de", "format": "json"},
+            timeout=10,
+        )
+        data = r.json()
+        results = data.get("results")
+        if results and len(results) > 0:
+            entry = {"lat": results[0]["latitude"], "lon": results[0]["longitude"], "name": results[0].get("name", city)}
+            _geo_cache[key] = entry
+            return entry
+    except Exception:
+        pass
+    _geo_cache[key] = None
+    return None
+
+
+def get_weather(lat: float = 52.27, lon: float = 10.53, location: str = "") -> dict:
     """Open-Meteo current weather + forecast."""
     try:
+        if location:
+            geo = geocode(location)
+            if geo:
+                lat, lon = geo["lat"], geo["lon"]
+            else:
+                return {"ok": False, "error": f"Stadt nicht gefunden: {location}"}
         url = "https://api.open-meteo.com/v1/forecast"
         params = {
             "latitude": lat,

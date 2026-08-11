@@ -103,7 +103,8 @@ def settings():
 @app.route("/api/weather")
 @require_login
 def api_weather():
-    return jsonify(weather.get_weather())
+    location = request.args.get("location", "").strip()
+    return jsonify(weather.get_weather(location=location))
 
 
 @app.route("/api/news")

@@ -645,7 +645,7 @@ const DEFAULT_GS_LAYOUT = [
 ];
 
 const GS_WIDGET_RENDERERS = {
-  weather: async(el,w,h)=>{ el.innerHTML=`<h3>🌤️ Wetter</h3><div class="gs-widget-body">${skeletonCard()}</div>`; try{const d=await getJSON("/api/weather");if(!d.ok)throw 0;el.querySelector(".gs-widget-body").innerHTML=`<div style="font-size:${h>=2?36:24}px;font-weight:700">${d.current.temp}°C</div><div style="font-size:12px">${d.current.code===0?'☀️':'☁️'} ${d.current.humidity}%</div>`;}catch(e){el.querySelector(".gs-widget-body").innerHTML="<p class='empty-state'>Nicht verfügbar</p>";}},
+  weather: async(el,w,h)=>{const gsId=el.closest('.gs-widget-card')?.getAttribute('gs-id')||'';const parts=gsId.split('-');const loc=parts.length>1?parts.slice(1).join('-').replace(/-/g,' '):'Deutschland';const locDisplay=loc.charAt(0).toUpperCase()+loc.slice(1);el.innerHTML=`<h3>🌤️ ${locDisplay}</h3><div class="gs-widget-body">${skeletonCard()}</div>`; try{const d=await getJSON("/api/weather?location="+encodeURIComponent(loc));if(!d.ok)throw 0;el.querySelector(".gs-widget-body").innerHTML=`<div style="font-size:${h>=2?36:24}px;font-weight:700">${d.current.temp}°C</div><div style="font-size:12px">${d.current.code===0?'☀️':'☁️'} ${d.current.humidity}%</div>`;}catch(e){el.querySelector(".gs-widget-body").innerHTML="<p class='empty-state'>Nicht verfügbar</p>";}},
   calendar: async(el,w,h)=>{ el.innerHTML=`<h3>📅 Termine</h3><div class="gs-widget-body">${skeletonList(h>=2?3:1)}</div>`; try{const d=await getJSON("/api/calendar");const evs=(d.today||[]).slice(0,h>=2?4:1);const body=el.querySelector(".gs-widget-body");body.innerHTML=evs.length?evs.map(e=>`<div style="font-size:13px;padding:4px 0">${new Date(e.start).toLocaleTimeString("de",{hour:"2-digit",minute:"2-digit"})} ${escapeHtml(e.title)}</div>`).join(""):"<p class='empty-state'>Keine Termine</p>";}catch(e){}},
   tasks: async(el,w,h)=>{ el.innerHTML=`<h3>✅ Tasks</h3><div class="gs-widget-body">${skeletonList(h>=2?4:2)}</div>`; try{const d=await getJSON("/api/tasks?status=Offen");const tasks=(d.tasks||[]).filter(t=>t.status!=="Erledigt").slice(0,h>=2?5:2);const body=el.querySelector(".gs-widget-body");body.innerHTML=tasks.length?tasks.map(t=>`<div style="font-size:13px;padding:3px 0;display:flex;align-items:center;gap:6px"><span style="color:var(--accent)">○</span> ${escapeHtml(t.title)}</div>`).join(""):"<p class='empty-state'>Alles erledigt!</p>";}catch(e){}},
   news: async(el,w,h)=>{ el.innerHTML=`<h3>📰 News</h3><div class="gs-widget-body">${skeletonList(h>=2?4:2)}</div>`; try{const d=await getJSON("/api/news");const body=el.querySelector(".gs-widget-body");body.innerHTML=(d.items||[]).slice(0,h>=2?4:1).map(n=>`<a href="${escapeHtml(n.url)}" target="_blank" style="display:block;font-size:12px;padding:3px 0;color:var(--text);text-decoration:none;border-bottom:1px solid var(--surface-2)">${escapeHtml(n.title)}</a>`).join("");}catch(e){}},
@@ -733,12 +733,13 @@ async function renderHome(container) {
     const gallery=document.createElement("div"); gallery.className="modal"; gallery.id="gs-gallery-modal"; gallery.innerHTML=`<div class="modal-card"><div class="modal-header"><h3>Widget hinzufügen</h3><button class="close-modal">×</button></div><div class="modal-body"><div class="gs-gallery-grid">${Object.keys(GS_WIDGET_RENDERERS).filter(id=>!layout.find(i=>i.id===id)).map(id=>`<div class="gs-gallery-item" data-id="${id}"><span>${id}</span></div>`).join("")||"<p>Alle Widgets schon eingefügt</p>"}</div></div></div>`;
     document.body.appendChild(gallery); gallery.style.display="flex";
     gallery.querySelector(".close-modal").addEventListener("click",()=>gallery.remove());
-    gallery.querySelectorAll(".gs-gallery-item").forEach(item=>item.addEventListener("click",()=>{
-      const id=item.dataset.id; gallery.remove();
+    gallery.querySelectorAll(".gs-gallery-item").forEach(item=>item.addEventListener("click",async()=>{
+      let id=item.dataset.id; gallery.remove();
+      if(id==="weather"){const city=prompt("Stadt für Wetter-Widget:","Berlin");if(!city||!city.trim())return;id="weather-"+city.trim().toLowerCase().replace(/\s+/g,"-");}
       const el=document.createElement("div"); el.setAttribute("gs-id",id); el.setAttribute("gs-w","2"); el.setAttribute("gs-h","2");
       el.className="gs-widget-card"; el.innerHTML='<div class="gs-widget-inner">'+skeletonCard()+"</div>";
       gsGrid.addWidget(el,{w:2,h:2});
-      const renderer=GS_WIDGET_RENDERERS[id]; if(renderer)renderer(el.querySelector(".gs-widget-inner"),2,2);
+      const renderer=GS_WIDGET_RENDERERS[item.dataset.id]; if(renderer)renderer(el.querySelector(".gs-widget-inner"),2,2);
     }));
   });
 
