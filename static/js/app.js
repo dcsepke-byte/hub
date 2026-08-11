@@ -630,40 +630,119 @@ function renderCustomize(container) {
 }
 
 // --- Home ---
+// Gridstack-powered iOS-style widget home
+
+const DEFAULT_GS_LAYOUT = [
+  {id:"weather", x:0, y:0, w:2, h:2},
+  {id:"calendar", x:2, y:0, w:2, h:2},
+  {id:"tasks", x:0, y:2, w:2, h:2},
+  {id:"news", x:2, y:2, w:2, h:2},
+  {id:"chat", x:0, y:4, w:4, h:3},
+  {id:"water", x:0, y:7, w:1, h:1},
+  {id:"timer", x:1, y:7, w:1, h:1},
+  {id:"stocks", x:2, y:7, w:2, h:1},
+  {id:"clock", x:0, y:8, w:4, h:1},
+];
+
+const GS_WIDGET_RENDERERS = {
+  weather: async(el,w,h)=>{ el.innerHTML=`<h3>🌤️ Wetter</h3><div class="gs-widget-body">${skeletonCard()}</div>`; try{const d=await getJSON("/api/weather");if(!d.ok)throw 0;el.querySelector(".gs-widget-body").innerHTML=`<div style="font-size:${h>=2?36:24}px;font-weight:700">${d.current.temp}°C</div><div style="font-size:12px">${d.current.code===0?'☀️':'☁️'} ${d.current.humidity}%</div>`;}catch(e){el.querySelector(".gs-widget-body").innerHTML="<p class='empty-state'>Nicht verfügbar</p>";}},
+  calendar: async(el,w,h)=>{ el.innerHTML=`<h3>📅 Termine</h3><div class="gs-widget-body">${skeletonList(h>=2?3:1)}</div>`; try{const d=await getJSON("/api/calendar");const evs=(d.today||[]).slice(0,h>=2?4:1);const body=el.querySelector(".gs-widget-body");body.innerHTML=evs.length?evs.map(e=>`<div style="font-size:13px;padding:4px 0">${new Date(e.start).toLocaleTimeString("de",{hour:"2-digit",minute:"2-digit"})} ${escapeHtml(e.title)}</div>`).join(""):"<p class='empty-state'>Keine Termine</p>";}catch(e){}},
+  tasks: async(el,w,h)=>{ el.innerHTML=`<h3>✅ Tasks</h3><div class="gs-widget-body">${skeletonList(h>=2?4:2)}</div>`; try{const d=await getJSON("/api/tasks?status=Offen");const tasks=(d.tasks||[]).filter(t=>t.status!=="Erledigt").slice(0,h>=2?5:2);const body=el.querySelector(".gs-widget-body");body.innerHTML=tasks.length?tasks.map(t=>`<div style="font-size:13px;padding:3px 0;display:flex;align-items:center;gap:6px"><span style="color:var(--accent)">○</span> ${escapeHtml(t.title)}</div>`).join(""):"<p class='empty-state'>Alles erledigt!</p>";}catch(e){}},
+  news: async(el,w,h)=>{ el.innerHTML=`<h3>📰 News</h3><div class="gs-widget-body">${skeletonList(h>=2?4:2)}</div>`; try{const d=await getJSON("/api/news");const body=el.querySelector(".gs-widget-body");body.innerHTML=(d.items||[]).slice(0,h>=2?4:1).map(n=>`<a href="${escapeHtml(n.url)}" target="_blank" style="display:block;font-size:12px;padding:3px 0;color:var(--text);text-decoration:none;border-bottom:1px solid var(--surface-2)">${escapeHtml(n.title)}</a>`).join("");}catch(e){}},
+  chat: async(el,w,h)=>{ el.innerHTML=`<div style="display:flex;flex-direction:column;height:100%"><div style="font-weight:600;margin-bottom:8px">💬 Hermes</div><div class="gs-widget-body" style="flex:1;overflow-y:auto;font-size:12px;max-height:${h>=3?'300px':'100px'}">Tippe um zu chatten...</div><form class="gs-chat-form" style="display:flex;gap:4px;margin-top:6px"><input type="text" class="gs-chat-input" placeholder="Frage..." style="flex:1;padding:6px 10px;border-radius:8px;border:none;background:var(--surface-2);color:var(--text);font-size:12px"><button type="submit" style="padding:6px 12px;border-radius:8px;border:none;background:var(--accent);color:#fff;font-size:12px">→</button></form></div>`;
+    const body=el.querySelector(".gs-widget-body"); const inp=el.querySelector(".gs-chat-input"); const form=el.querySelector(".gs-chat-form");
+    form.addEventListener("submit",async e=>{e.preventDefault();const q=inp.value.trim();if(!q)return;body.innerHTML+='<div style="margin:4px 0;text-align:right;color:var(--accent)">'+escapeHtml(q)+'</div>';inp.value="";body.innerHTML+='<div style="color:var(--text-tertiary);font-style:italic">...</div>';body.scrollTop=body.scrollHeight;
+    try{const cr=await postJSON("/api/chats",{title:"Widget Chat"});const mr=await postJSON(`/api/chats/${cr.id}/messages`,{content:q,context:{page:"home"}});body.lastChild.remove();if(mr.reply)body.innerHTML+='<div style="margin:4px 0">'+escapeHtml(mr.reply.slice(0,300))+'</div>';body.scrollTop=body.scrollHeight;}catch(x){body.lastChild.remove();body.innerHTML+='<div style="color:var(--error)">Fehler</div>';}});
+  },
+  water: async(el,w,h)=>{ el.innerHTML=`<h3>💧 Wasser</h3><div class="gs-widget-body">${skeletonCard()}</div>`; try{const d=await getJSON("/api/health");const pct=Math.min(100,Math.round(d.water/d.goal*100));el.querySelector(".gs-widget-body").innerHTML=`<div style="font-size:${w>=2?28:20}px;font-weight:700">${d.water.toFixed(1)}L</div><div style="font-size:11px;color:var(--text-secondary)">/ ${d.goal.toFixed(1)}L</div><div style="background:var(--surface-2);border-radius:6px;height:6px;margin-top:4px"><div style="background:var(--accent);border-radius:6px;height:100%;width:${pct}%"></div></div>`;}catch(e){}},
+  timer: (el,w,h)=>{ el.innerHTML=`<div style="text-align:center"><h3>⏱️ Timer</h3><div style="font-size:${w>=2?36:28}px;font-weight:700;font-variant-numeric:tabular-nums" class="gs-timer-display">00:00</div><div style="display:flex;gap:4px;justify-content:center;margin-top:6px"><button class="gs-timer-btn btn-secondary" data-act="start" style="font-size:11px;padding:4px 10px">▶</button><button class="gs-timer-btn btn-secondary" data-act="pause" style="font-size:11px;padding:4px 10px">⏸</button><button class="gs-timer-btn btn-secondary" data-act="reset" style="font-size:11px;padding:4px 10px">↺</button></div></div>`;
+    let sec=0,intv=null;const disp=el.querySelector(".gs-timer-display");
+    function upd(){const m=Math.floor(sec/60),s=sec%60;disp.textContent=String(m).padStart(2,"0")+":"+String(s).padStart(2,"0");}
+    el.querySelectorAll(".gs-timer-btn").forEach(b=>b.addEventListener("click",()=>{const a=b.dataset.act;
+      if(a==="start"){if(intv)return;intv=setInterval(()=>{sec++;upd();},1000);}
+      else if(a==="pause"){clearInterval(intv);intv=null;}
+      else{clearInterval(intv);intv=null;sec=0;upd();}
+    }));
+  },
+  stocks: async(el,w,h)=>{ el.innerHTML=`<h3>📈 Watchlist</h3><div class="gs-widget-body">${skeletonList(3)}</div>`; try{const d=await getJSON("/api/stocks");const body=el.querySelector(".gs-widget-body");body.innerHTML=(d.stocks||[]).slice(0,w>=2?4:2).map(s=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0"><span>${escapeHtml(s.symbol)}</span><span style="color:${s.change>0?'#4ade80':s.change<0?'#f87171':'var(--text)'}">${s.price.toFixed(2)}</span></div>`).join("");}catch(e){}},
+  clock: (el,w,h)=>{ function t(){const n=new Date();el.innerHTML=`<div style="text-align:center"><div style="font-size:${w>=4?42:32}px;font-weight:700">${n.toLocaleTimeString("de",{hour:"2-digit",minute:"2-digit"})}</div><div style="font-size:12px;color:var(--text-secondary)">${n.toLocaleDateString("de",{weekday:"long",day:"numeric",month:"long"})}</div></div>`;}t();setInterval(t,30000);},
+};
+
+function loadGSLayout(){try{const raw=localStorage.getItem("hub_gs_layout");if(raw){const arr=JSON.parse(raw);if(Array.isArray(arr)&&arr.length>0)return arr;}}catch(e){}return [...DEFAULT_GS_LAYOUT];}
+function saveGSLayout(layout){localStorage.setItem("hub_gs_layout",JSON.stringify(layout));}
+
+let gsGrid=null;
+function getGSGrid(){return gsGrid;}
+
 async function renderHome(container) {
-  container.innerHTML = `
+  container.innerHTML=`
     <div class="app-grid">
-      ${appIcon("party-arena", "Party Arena")}
-      ${appIcon("piano-coach", "Klavier")}
-      ${appIcon("bangkok", "Bangkok")}
-      ${appIcon("notizen", "Notizen")}
-      ${appIcon("wiki", "Wiki", "📚")}
-      ${appIcon("projects", "Projekte")}
-      ${appIcon("todo", "To-Do")}
-      ${appIcon("budget", "Budget")}
-      ${appIcon("explorer", "Explorer")}
-      ${appIcon("health", "Gesundheit")}
-      ${appIcon("chat", "Hermes")}
-      ${appIcon("lydia", "Lydia")}
-      ${appIcon("newsapp", "News", "📰")}
-      ${appIcon("weatherapp", "Wetter", "🌤️")}
-      ${appIcon("stocksapp", "Stocks", "📈")}
-      ${appIcon("gamesapp", "Spiele", "🎮")}
-      ${appIcon("toolsapp", "Tools", "🔧")}
-      ${appIcon("server", "Server", "🖥️")}
-      ${appIcon("embed", "Embed", "🌐")}
-      ${appIcon("customize", "Anpassen", "🧩")}
-      ${appIcon("settings", "Settings")}
+      ${appIcon("party-arena","Party Arena")}  ${appIcon("piano-coach","Klavier")}
+      ${appIcon("bangkok","Bangkok")}  ${appIcon("notizen","Notizen")}
+      ${appIcon("wiki","Wiki","📚")}  ${appIcon("projects","Projekte")}
+      ${appIcon("todo","To-Do")}  ${appIcon("budget","Budget")}
+      ${appIcon("explorer","Explorer")}  ${appIcon("health","Gesundheit")}
+      ${appIcon("chat","Hermes")}  ${appIcon("lydia","Lydia")}
+      ${appIcon("newsapp","News","📰")}  ${appIcon("weatherapp","Wetter","🌤️")}
+      ${appIcon("stocksapp","Stocks","📈")}  ${appIcon("gamesapp","Spiele","🎮")}
+      ${appIcon("toolsapp","Tools","🔧")}  ${appIcon("server","Server","🖥️")}
+      ${appIcon("embed","Embed","🌐")}  ${appIcon("settings","Settings")}
     </div>
-    <div id="suggestion-chip" class="suggestion-chip" style="opacity:0;transform:translateY(-12px);transition:opacity 0.5s ease, transform 0.5s ease;cursor:pointer;">
-      <div class="icon">⚡</div>
-      <div class="text" id="chip-text">Lade Tasks...</div>
-      <div class="cta">Tasks →</div>
-    </div>`;
+    <div id="suggestion-chip" class="suggestion-chip" style="opacity:0;transform:translateY(-12px);transition:opacity .5s ease,transform .5s ease;cursor:pointer"><div class="icon">⚡</div><div class="text" id="chip-text">Lade Tasks...</div><div class="cta">Tasks →</div></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin:4px 6px 0">
+      <h3 style="margin:0;font-size:16px">Widgets</h3>
+      <div style="display:flex;gap:6px">
+        <button class="btn-secondary" id="gs-add-widget" style="font-size:12px;padding:4px 10px">＋</button>
+        <button class="btn-secondary" id="gs-jiggle-toggle" style="font-size:12px;padding:4px 10px">✋</button>
+      </div>
+    </div>
+    <div class="grid-stack" id="gs-grid"></div>`;
+
   bindAppClicks();
   bindSuggestionChip();
   refreshSuggestionChip();
-  initPullToRefresh(async () => { refreshSuggestionChip(); });
+
+  const gridEl=$("#gs-grid");
+  if(!gridEl||typeof GridStack==="undefined")return;
+
+  gsGrid=GridStack.init({column:4,cellHeight:70,margin:6,float:true,animate:true,disableResize:true,disableDrag:true},gridEl);
+
+  const layout=loadGSLayout();
+  layout.forEach(item=>{
+    const renderer=GS_WIDGET_RENDERERS[item.id];
+    if(!renderer)return;
+    const el=document.createElement("div");
+    el.setAttribute("gs-id",item.id); el.setAttribute("gs-w",item.w||2); el.setAttribute("gs-h",item.h||2);
+    el.setAttribute("gs-x",item.x); el.setAttribute("gs-y",item.y);
+    el.className="gs-widget-card";
+    el.innerHTML='<div class="gs-widget-inner">'+skeletonCard()+"</div>";
+    gsGrid.addWidget(el,{x:item.x,y:item.y,w:item.w||2,h:item.h||2});
+    renderer(el.querySelector(".gs-widget-inner"),item.w||2,item.h||2);
+  });
+
+  gsGrid.on("change",()=>{if(gsGrid){const l=gsGrid.save(false).map(n=>({id:n.el.getAttribute("gs-id"),x:n.x,y:n.y,w:n.w,h:n.h}));saveGSLayout(l);}});
+
+  $("#gs-jiggle-toggle").addEventListener("click",()=>{
+    const btn=$("#gs-jiggle-toggle"); const active=btn.classList.toggle("active");
+    btn.textContent=active?"✅":"✋";
+    if(active){gsGrid.enableMove(true);gsGrid.enableResize(true);document.querySelectorAll(".gs-widget-card").forEach(c=>c.classList.add("jiggle"));}
+    else{gsGrid.enableMove(false);gsGrid.enableResize(false);document.querySelectorAll(".gs-widget-card").forEach(c=>c.classList.remove("jiggle"));gsGrid.compact();}
+  });
+
+  $("#gs-add-widget").addEventListener("click",()=>{
+    const gallery=document.createElement("div"); gallery.className="modal"; gallery.id="gs-gallery-modal"; gallery.innerHTML=`<div class="modal-card"><div class="modal-header"><h3>Widget hinzufügen</h3><button class="close-modal">×</button></div><div class="modal-body"><div class="gs-gallery-grid">${Object.keys(GS_WIDGET_RENDERERS).filter(id=>!layout.find(i=>i.id===id)).map(id=>`<div class="gs-gallery-item" data-id="${id}"><span>${id}</span></div>`).join("")||"<p>Alle Widgets schon eingefügt</p>"}</div></div></div>`;
+    document.body.appendChild(gallery); gallery.style.display="flex";
+    gallery.querySelector(".close-modal").addEventListener("click",()=>gallery.remove());
+    gallery.querySelectorAll(".gs-gallery-item").forEach(item=>item.addEventListener("click",()=>{
+      const id=item.dataset.id; gallery.remove();
+      const el=document.createElement("div"); el.setAttribute("gs-id",id); el.setAttribute("gs-w","2"); el.setAttribute("gs-h","2");
+      el.className="gs-widget-card"; el.innerHTML='<div class="gs-widget-inner">'+skeletonCard()+"</div>";
+      gsGrid.addWidget(el,{w:2,h:2});
+      const renderer=GS_WIDGET_RENDERERS[id]; if(renderer)renderer(el.querySelector(".gs-widget-inner"),2,2);
+    }));
+  });
+
+  initPullToRefresh(async()=>{refreshSuggestionChip();});
 }
 
 function statusBadgeClass(status) {
@@ -725,7 +804,7 @@ async function maybeRefreshHome() {
   if (appState.page !== "home") return;
   if (document.visibilityState !== "visible") return;
   if (isInputFocused()) return;
-  await Promise.all([loadWeather(), loadTodayTasks(), loadTodayEvents(), loadNews(), loadStocks(), loadCalendarWeek(), loadTimer(), loadWater(), refreshSuggestionChip()]);
+  await Promise.all([loadWeather(), loadTodayTasks(), loadTodayEvents(), loadNews(), loadStocks(), loadCalendarWeek(), loadTimer(), loadWater(), refreshSuggestionChip(), refreshAllWidgetData().catch(()=>{})]);
 }
 
 function startAutoRefresh() {
